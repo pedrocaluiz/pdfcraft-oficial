@@ -672,6 +672,28 @@ impl DocView {
         self.screen_xforms.iter().find(|(p, _)| *p == page).map(|(_, xf)| xf.rect)
     }
 
+    /// Text of the current selection and its on-screen rectangle, if any.
+    pub fn selected_text_and_rect(&self) -> Option<(String, Rect)> {
+        let selection = self.selection?;
+        let text = self.texts.get(&selection.page)?;
+        let xf = self.page_xform(selection.page)?;
+        let last = selection.rects(text).last().copied()?;
+        let selected = selection.text(text);
+        if selected.is_empty() {
+            return None;
+        }
+        let rect = xf.view_rect(last);
+        Some((selected.to_string(), rect))
+    }
+
+    /// Point near the end of the text selection in view space, if any.
+    pub fn selection_view_point(&self) -> Option<[f32; 2]> {
+        let selection = self.selection?;
+        let text = self.texts.get(&selection.page)?;
+        let last = selection.rects(text).last().copied()?;
+        Some([last[0], last[1]])
+    }
+
     /// The document area on screen.
     pub fn viewport_rect(&self) -> Rect {
         self.viewport_screen
@@ -2831,6 +2853,9 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         }
     }
     let selection_wheel = view.selection_drag && navigation_enabled && unobstructed && !single_paging && ui.rect_contains_pointer(avail);
+    let selection_handlers = app.selection_handlers.clone();
+    let mut selection_lookup_action: Option<(String, crate::lookup::LookupKind, Pos2, Option<String>)> = None;
+    let mut selection_open_url: Option<String> = None;
     let out = page_scroll(ui, scroll, egui::Id::new(("page-view-scope", view.id)), |ui, viewport| {
         // egui's drag responses accept every pointer button. Keep a wheel gesture from also
         // selecting text, drawing a mark, or panning with the Hand tool.
@@ -3730,6 +3755,42 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
                     ui.separator();
                 }
             }
+            if let Some(selection) = view.selection
+                && let Some(text) = view.texts.get(&selection.page)
+            {
+                let selected = selection.text(text);
+                if !selected.is_empty() {
+                    let sel_str = selected.to_string();
+                    let click_pos = ui.input(|i| i.pointer.hover_pos()).unwrap_or(avail.min + vec2(100.0, 100.0));
+                    ui.menu_button("Seleção", |ui| {
+                        if ui.button("Google Tradutor PT-BR (Ctrl+T)").clicked() {
+                            selection_lookup_action = Some((sel_str.clone(), crate::lookup::LookupKind::Translate, click_pos, None));
+                            ui.close();
+                        }
+                        if ui.button("Definição (Dicio) (Ctrl+D)").clicked() {
+                            selection_lookup_action = Some((sel_str.clone(), crate::lookup::LookupKind::Dictionary, click_pos, None));
+                            ui.close();
+                        }
+                        ui.separator();
+                        for handler in &selection_handlers {
+                            if handler.name == "Google Tradutor PT-BR" || handler.name == "Definição (Dicio)" {
+                                continue;
+                            }
+                            let label = if handler.shortcut.is_empty() {
+                                handler.name.clone()
+                            } else {
+                                format!("{} ({})", handler.name, handler.shortcut)
+                            };
+                            if ui.button(label).clicked() {
+                                let url = handler.format_url(&sel_str);
+                                selection_open_url = Some(url);
+                                ui.close();
+                            }
+                        }
+                    });
+                    ui.separator();
+                }
+            }
             canvas_action = comments::context_menu(ui, view, info, prefs, allowed).or(copy_image);
         });
         (wanted, visible_now)
@@ -3745,7 +3806,11 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     view.viewport_screen = out.inner_rect;
     view.auto_scroll.paint(ui, avail);
     if unobstructed && matches!(tool, QuickTool::Select | QuickTool::ColumnSelect) {
-        copy_selected |= selection_actions(ui, avail, view, info, prefs, allowed && !comments_hidden, can_copy);
+        let mut lookup_request = None;
+        copy_selected |= selection_actions(ui, avail, view, info, prefs, allowed && !comments_hidden, can_copy, &mut lookup_request);
+        if let Some((q, kind, pos)) = lookup_request {
+            selection_lookup_action = Some((q, kind, pos, None));
+        }
     }
 
     // Collect all main-page demand, including cached surfaces, for byte admission later.
@@ -4083,6 +4148,13 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     if let Some((source, file, destination)) = remote_open {
         app.open_remote_link(source, file, destination);
     }
+    if let Some((q, kind, pos, fallback)) = selection_lookup_action {
+        app.active_lookup = Some(crate::lookup::ActiveLookup::start(&q, kind, pos, fallback.as_deref(), Some(&app.ollama_config)));
+    }
+    if let Some(url) = selection_open_url {
+        app.open_url(&url);
+    }
+    crate::lookup::render_balloon(ui, app, avail);
 }
 
 #[derive(Clone, Copy)]
@@ -4091,6 +4163,8 @@ enum SelectionAction {
     Markup(comments::CommentTool),
     Replace,
     Copy,
+    Translate,
+    Dictionary,
 }
 
 /// Actions on an existing text selection, next to the selected words.
@@ -4102,6 +4176,7 @@ fn selection_actions(
     prefs: &comments::CommentPrefs,
     can_comment: bool,
     can_copy: bool,
+    lookup_request: &mut Option<(String, crate::lookup::LookupKind, Pos2)>,
 ) -> bool {
     if ui.input(|input| input.pointer.is_decidedly_dragging()) {
         return false;
@@ -4144,6 +4219,13 @@ fn selection_actions(
                 if ui.add_enabled(can_copy, egui::Button::new(tl!("Copy"))).clicked() {
                     chosen = Some(SelectionAction::Copy);
                 }
+                ui.separator();
+                if ui.button("Traduzir").on_hover_text("Traduzir com Google Tradutor (Ctrl+T)").clicked() {
+                    chosen = Some(SelectionAction::Translate);
+                }
+                if ui.button("Dicionário").on_hover_text("Definição no Dicionário Dicio (Ctrl+D)").clicked() {
+                    chosen = Some(SelectionAction::Dictionary);
+                }
             });
         });
     });
@@ -4152,6 +4234,14 @@ fn selection_actions(
         // Copying closes the bar but keeps the words selected, for ⌘C or a second action.
         view.actions_dismissed = Some(selection);
         return true;
+    }
+    if let SelectionAction::Translate = action {
+        *lookup_request = Some((selected.to_string(), crate::lookup::LookupKind::Translate, pos2(x, y)));
+        return false;
+    }
+    if let SelectionAction::Dictionary = action {
+        *lookup_request = Some((selected.to_string(), crate::lookup::LookupKind::Dictionary, pos2(x, y)));
+        return false;
     }
     let Some((page, quads)) = view.selection_quads(info) else { return false };
     let last = quads.last().copied().unwrap_or_default();
@@ -4181,8 +4271,8 @@ fn selection_actions(
                 author: prefs.author.clone(),
             }));
         }
-        // Copy is dispatched through the app after the view borrow ends.
-        SelectionAction::Copy => {}
+        // Copy is dispatched through the app after the view borrow ends; the lookups return above.
+        SelectionAction::Copy | SelectionAction::Translate | SelectionAction::Dictionary => {}
     }
     false
 }

@@ -35,7 +35,7 @@ pub fn left_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     );
 }
 
-fn panel_header(ui: &mut egui::Ui, t: &Tokens, title: &str, back: bool) -> (bool, bool) {
+pub(crate) fn panel_header(ui: &mut egui::Ui, t: &Tokens, title: &str, back: bool) -> (bool, bool) {
     let mut go_back = false;
     let mut close = false;
     ui.horizontal(|ui| {
@@ -169,6 +169,11 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
     // Add a stamp: the palette.
     if g.id == "stamp" {
         stamp_palette(app, ui, t);
+        return;
+    }
+    // Dedicated AI assistant panel.
+    if g.id == "ai" {
+        crate::ai_assistant::panel(app, ui, t);
         return;
     }
     // Prepare a form: Preview fills the form as a reader would; Edit goes back.

@@ -62,7 +62,7 @@ const fn menu_item(label: &'static str, icon: &'static str, actions: &'static [&
     ToolItem { label, icon, command, availability: Ready, actions }
 }
 
-use Availability::{Planned, Provider, Ready};
+use Availability::{Planned, Ready};
 
 const RED: [u8; 3] = [0xE0, 0x3E, 0x3E];
 const PURPLE: [u8; 3] = [0x8E, 0x4E, 0xE6];
@@ -531,14 +531,14 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         label: "AI assistant",
         icon: "sparkles",
         hue: PINK,
-        badge: Some("Optional"),
-        availability: Provider,
+        badge: None,
+        availability: Ready,
         sections: &[ToolSection {
-            title: "Bring your own model (off by default)",
+            title: "Bring your own model (Ollama)",
             items: &[
-                item("Summarize", "sparkles", "ai.summary", Provider),
-                item("Ask about this document", "message-circle-reply", "ai.ask", Provider),
-                item("Translate", "languages", "ai.translate", Provider),
+                item("Summarize", "sparkles", "ai.summary", Ready),
+                item("Ask about this document", "message-circle-reply", "ai.ask", Ready),
+                item("Translate", "languages", "ai.translate", Ready),
             ],
         }],
     },

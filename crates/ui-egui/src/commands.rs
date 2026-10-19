@@ -404,6 +404,18 @@ impl PdfCraftApp {
                 self.dialog = Some(Dialog::DocumentJs);
             }
             "app.preferences" => self.dialog = Some(Dialog::Preferences),
+            "ai.summary" => {
+                self.select_tool("ai");
+                self.trigger_ai_action(crate::ai_assistant::AiKind::Summarize);
+            }
+            "ai.ask" => {
+                self.select_tool("ai");
+                self.trigger_ai_action(crate::ai_assistant::AiKind::Ask);
+            }
+            "ai.translate" => {
+                self.select_tool("ai");
+                self.trigger_ai_action(crate::ai_assistant::AiKind::Translate);
+            }
             "ocr.recognize_batch" => self.ocr_files_dialog(),
             "edit.edit_text" => {
                 self.quick_tool = crate::QuickTool::EditText;

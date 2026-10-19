@@ -490,6 +490,75 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
         }
     });
     ui.add_space(8.0);
+    // Assistente de IA (Ollama / Local):
+    ui.label(egui::RichText::new("Assistente de IA (Ollama / Local)").font(theme::semibold(13.0)));
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.add(widgets::checkbox(&mut app.ollama_config.enabled, "Habilitar Assistente de IA no leitor"));
+        if app.ollama_config.enabled {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                let lbl = ui.label("Servidor / Endpoint:");
+                ui.add(egui::TextEdit::singleline(&mut app.ollama_config.endpoint).desired_width(220.0)).labelled_by(lbl.id);
+                if ui.button("Padrão (11434)").clicked() {
+                    app.ollama_config.endpoint = "http://localhost:11434".into();
+                }
+            });
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                let lbl = ui.label("Modelo Ollama:");
+                ui.add(egui::TextEdit::singleline(&mut app.ollama_config.model).desired_width(160.0)).labelled_by(lbl.id);
+                ui.label("Sugestões:");
+                for m in ["qwen2.5-coder:7b", "llama3.2", "qwen2.5:7b", "mistral", "deepseek-r1"] {
+                    if ui.selectable_label(app.ollama_config.model == m, m).clicked() {
+                        app.ollama_config.model = m.into();
+                    }
+                }
+            });
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if ui.button("🔌 Testar Conexão com Ollama").clicked() {
+                    app.test_ollama();
+                }
+                if let Some(status) = &app.ollama_test_status {
+                    match status {
+                        Ok(models) => {
+                            let text = if models.is_empty() {
+                                "✓ Conectado! (Nenhum modelo baixado no Ollama ainda. Execute 'ollama run qwen2.5-coder:7b')".to_string()
+                            } else {
+                                format!("✓ Conectado! ({} modelos instalados)", models.len())
+                            };
+                            ui.label(egui::RichText::new(text).color(egui::Color32::from_rgb(24, 128, 56)));
+                        }
+                        Err(err) => {
+                            ui.label(egui::RichText::new(format!("❌ {}", err)).color(egui::Color32::from_rgb(217, 48, 37)));
+                        }
+                    }
+                }
+            });
+            if let Some(Ok(models)) = &app.ollama_test_status {
+                if !models.is_empty() {
+                    ui.add_space(4.0);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(egui::RichText::new("Modelos locais instalados:").strong().size(12.0));
+                        for m in models {
+                            let is_sel = app.ollama_config.model == *m;
+                            if ui.selectable_label(is_sel, m).clicked() {
+                                app.ollama_config.model = m.clone();
+                            }
+                        }
+                    });
+                }
+            }
+            ui.add_space(6.0);
+            ui.label(
+                egui::RichText::new("100% offline e privado. Ao selecionar qualquer texto no PDF, use '🤖 Explicar' (Ctrl+E) ou '📝 Resumir' (Ctrl+Shift+E).")
+                    .small()
+                    .color(t.text_muted),
+            );
+        }
+    });
+    ui.add_space(8.0);
     // Identity: the author of new comments (Acrobat: Preferences ▸ Identity).
     ui.label(egui::RichText::new(tl!("Identity")).font(theme::semibold(13.0)));
     ui.horizontal(|ui| {
