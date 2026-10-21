@@ -1245,6 +1245,8 @@ fn v_h_and_space_pick_the_quick_tools() {
     };
     assert_eq!(press(&mut h, Key::H), QuickTool::Hand);
     assert_eq!(press(&mut h, Key::V), QuickTool::Select);
+    assert_eq!(press(&mut h, Key::A), QuickTool::Comment(pdfcraft_ui_egui::comments::CommentTool::Highlight));
+    assert_eq!(press(&mut h, Key::A), QuickTool::Select);
     // V leaves any other tool too, as the toolbar button does.
     h.state_mut().quick_tool = QuickTool::Crop;
     assert_eq!(press(&mut h, Key::V), QuickTool::Select);

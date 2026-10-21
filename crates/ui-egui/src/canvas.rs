@@ -4205,12 +4205,13 @@ fn selection_actions(
     egui::Area::new(egui::Id::new(("text-selection-actions", view.id.0))).order(egui::Order::Foreground).fixed_pos(pos2(x, y)).show(ui.ctx(), |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
+                let highlight_label = format!("{} (A)", tl!("Highlight"));
                 for (label, action) in [
-                    (tl!("Add comment"), SelectionAction::Note),
-                    (tl!("Highlight"), SelectionAction::Markup(comments::CommentTool::Highlight)),
-                    (tl!("Underline"), SelectionAction::Markup(comments::CommentTool::Underline)),
-                    (tl!("Strikethrough"), SelectionAction::Markup(comments::CommentTool::StrikeOut)),
-                    (tl!("Replace text"), SelectionAction::Replace),
+                    (tl!("Add comment").to_string(), SelectionAction::Note),
+                    (highlight_label, SelectionAction::Markup(comments::CommentTool::Highlight)),
+                    (tl!("Underline").to_string(), SelectionAction::Markup(comments::CommentTool::Underline)),
+                    (tl!("Strikethrough").to_string(), SelectionAction::Markup(comments::CommentTool::StrikeOut)),
+                    (tl!("Replace text").to_string(), SelectionAction::Replace),
                 ] {
                     if ui.add_enabled(can_comment, egui::Button::new(label)).clicked() {
                         chosen = Some(action);
@@ -4744,7 +4745,12 @@ fn quick_bar(app: &mut PdfCraftApp, area: Rect, ui: &mut egui::Ui) {
                     for g in 0..comments::GROUPS.len() {
                         let current = app.comment_prefs.group_tool[g];
                         let active = matches!(app.quick_tool, QuickTool::Comment(t) if t.group() == g);
-                        let resp = icons::button(ui, current.icon(), 32.0, active, tl!(current.label()));
+                        let tooltip = if current == comments::CommentTool::Highlight {
+                            format!("{} (A)", tl!(current.label()))
+                        } else {
+                            tl!(current.label()).to_string()
+                        };
+                        let resp = icons::button(ui, current.icon(), 32.0, active, &tooltip);
                         // A small corner triangle marks the flyout.
                         let r = resp.rect;
                         let tri = [r.right_bottom() + vec2(-4.0, -4.0), r.right_bottom() + vec2(-9.0, -4.0), r.right_bottom() + vec2(-4.0, -9.0)];
@@ -4766,10 +4772,15 @@ fn quick_bar(app: &mut PdfCraftApp, area: Rect, ui: &mut egui::Ui) {
                                     let body = row.translate(press.offset());
                                     icons::paint(ui, Rect::from_min_size(body.min + vec2(8.0, 6.0), vec2(16.0, 16.0)), tool.icon(), 16.0, t.text);
                                     let reserve = if on { 28.0 } else { 8.0 };
+                                    let label = if *tool == comments::CommentTool::Highlight {
+                                        format!("{} (A)", tl!(tool.label()))
+                                    } else {
+                                        tl!(tool.label()).to_string()
+                                    };
                                     crate::widgets::paint_left(
                                         ui,
                                         body.left_center() + vec2(34.0, 0.0),
-                                        tl!(tool.label()),
+                                        &label,
                                         theme::regular(13.0),
                                         t.text,
                                         (row.width() - 34.0 - reserve).max(0.0),

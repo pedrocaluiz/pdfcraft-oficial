@@ -3149,6 +3149,36 @@ impl PdfCraftApp {
             self.quick_tool = QuickTool::Hand;
             self.space_hand = None;
         }
+        if ctx.input(|input| input.key_pressed(Key::A)) {
+            let doc_permits = self.session.get(self.views[i].id).is_some_and(|d| d.allows_annotation());
+            let selection = if doc_permits {
+                self.session.get(self.views[i].id).and_then(|d| self.views[i].selection_quads(&d.info))
+            } else {
+                None
+            };
+            if let Some((page, quads)) = selection {
+                self.views[i].clear_selection();
+                let tool = comments::CommentTool::Highlight;
+                self.comment_prefs.group_tool[tool.group()] = tool;
+                let style = self.comment_prefs.style(tool);
+                let author = self.comment_prefs.author.clone();
+                let shape = pdfcraft_engine::Shape::TextMarkup { kind: pdfcraft_engine::Markup::Highlight, quads };
+                self.apply_edit(pdfcraft_engine::Edit::AddAnnotation(pdfcraft_engine::NewAnnotation {
+                    page,
+                    shape,
+                    style,
+                    contents: String::new(),
+                    author,
+                }));
+            } else if self.quick_tool == QuickTool::Comment(comments::CommentTool::Highlight) {
+                self.quick_tool = QuickTool::Select;
+            } else if doc_permits {
+                let tool = comments::CommentTool::Highlight;
+                self.comment_prefs.group_tool[tool.group()] = tool;
+                self.quick_tool = QuickTool::Comment(tool);
+            }
+            self.space_hand = None;
+        }
         if space && self.space_hand.is_none() && self.quick_tool != QuickTool::Hand {
             self.space_hand = Some(self.quick_tool);
             self.quick_tool = QuickTool::Hand;
