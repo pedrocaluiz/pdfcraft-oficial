@@ -2720,3 +2720,5 @@ certificate	Version	الإصدار
 	Summarize page or document	تلخيص الصفحة أو المستند
 	Translate page or document	ترجمة الصفحة أو المستند
 	Bring your own model (Ollama)	استخدم نموذجك الخاص (Ollama)
+	Invert everything	عكس كل شيء
+	Text only, keep images	النص فقط، مع إبقاء الصور

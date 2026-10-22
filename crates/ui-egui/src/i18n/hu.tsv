@@ -2442,3 +2442,5 @@ animation effects	Off	Ki
 	Summarize page or document	Oldal vagy dokumentum összefoglalása
 	Translate page or document	Oldal vagy dokumentum fordítása
 	Bring your own model (Ollama)	Saját modell használata (Ollama)
+	Invert everything	Minden megfordítása
+	Text only, keep images	Csak a szöveg, a képek maradnak

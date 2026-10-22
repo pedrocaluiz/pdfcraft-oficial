@@ -3,7 +3,7 @@
 //! Provides inline in-app definitions (Dicio) and translations (Google Translate),
 //! as well as configurable external SelectionHandlers (SumatraPDF parity).
 
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{Receiver, channel};
 use std::thread;
 use std::time::Duration;
 
@@ -30,35 +30,17 @@ impl SelectionHandler {
                 shortcut: "Ctrl+T".into(),
             },
             Self {
-                name: "Definição (Dicio)".into(),
-                url: "https://www.dicio.com.br/pesquisa.php?q=${selection}".into(),
-                shortcut: "Ctrl+D".into(),
+                name: "Definição (Dicio)".into(), url: "https://www.dicio.com.br/pesquisa.php?q=${selection}".into(), shortcut: "Ctrl+D".into()
             },
-            Self {
-                name: "Traduzir com DeepL".into(),
-                url: "https://www.deepl.com/translator#auto/pt/${selection}".into(),
-                shortcut: String::new(),
-            },
-            Self {
-                name: "Procurar com Google".into(),
-                url: "https://www.google.com/search?q=${selection}".into(),
-                shortcut: String::new(),
-            },
-            Self {
-                name: "Procurar com Bing".into(),
-                url: "https://www.bing.com/search?q=${selection}".into(),
-                shortcut: String::new(),
-            },
+            Self { name: "Traduzir com DeepL".into(), url: "https://www.deepl.com/translator#auto/pt/${selection}".into(), shortcut: String::new() },
+            Self { name: "Procurar com Google".into(), url: "https://www.google.com/search?q=${selection}".into(), shortcut: String::new() },
+            Self { name: "Procurar com Bing".into(), url: "https://www.bing.com/search?q=${selection}".into(), shortcut: String::new() },
             Self {
                 name: "Procurar na Wikipedia".into(),
                 url: "https://pt.wikipedia.org/wiki/Special:Search?search=${selection}".into(),
                 shortcut: String::new(),
             },
-            Self {
-                name: "Google Scholar".into(),
-                url: "https://scholar.google.com/scholar?q=${selection}".into(),
-                shortcut: String::new(),
-            },
+            Self { name: "Google Scholar".into(), url: "https://scholar.google.com/scholar?q=${selection}".into(), shortcut: String::new() },
         ]
     }
 
@@ -102,7 +84,8 @@ impl Default for OllamaConfig {
             enabled: true,
             endpoint: "http://localhost:11434".into(),
             model: "llama3.2".into(),
-            system_prompt: "Você é um assistente útil e conciso integrado a um leitor de PDF. Responda em português de forma clara, didática e direta.".into(),
+            system_prompt:
+                "Você é um assistente útil e conciso integrado a um leitor de PDF. Responda em português de forma clara, didática e direta.".into(),
         }
     }
 }
@@ -148,13 +131,7 @@ pub struct ActiveLookup {
 
 impl ActiveLookup {
     /// Starts a background lookup.
-    pub fn start(
-        query: &str,
-        kind: LookupKind,
-        screen_pos: Pos2,
-        fallback_url: Option<&str>,
-        ollama_config: Option<&OllamaConfig>,
-    ) -> Self {
+    pub fn start(query: &str, kind: LookupKind, screen_pos: Pos2, fallback_url: Option<&str>, ollama_config: Option<&OllamaConfig>) -> Self {
         let trimmed = query.trim().to_string();
         let target_url = match fallback_url {
             Some(u) => {
@@ -269,10 +246,7 @@ pub fn query_ollama_raw(prompt: &str, system: Option<&str>, config: &OllamaConfi
 
         let body_resp = resp.body_mut().with_config().limit(1 << 23).read_to_string().map_err(|e| e.to_string())?;
         let val: serde_json::Value = serde_json::from_str(&body_resp).map_err(|e| format!("Erro ao decodificar JSON do Ollama: {e}"))?;
-        let response_text = val.get("response")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Sem resposta retornada pelo modelo.")
-            .trim();
+        let response_text = val.get("response").and_then(|v| v.as_str()).unwrap_or("Sem resposta retornada pelo modelo.").trim();
 
         Ok(response_text.to_string())
     }
@@ -290,12 +264,7 @@ fn fetch_ollama(query: &str, instruction: &str, config: Option<&OllamaConfig>) -
     let full_prompt = format!("{instruction}\n\n\"\"\"\n{query}\n\"\"\"");
     let response_text = query_ollama_raw(&full_prompt, None, cfg)?;
 
-    Ok(LookupResult {
-        title: format!("Assistente IA ({model})"),
-        text: response_text,
-        source_lang: None,
-        definitions: Vec::new(),
-    })
+    Ok(LookupResult { title: format!("Assistente IA ({model})"), text: response_text, source_lang: None, definitions: Vec::new() })
 }
 
 /// Tests connection to Ollama and returns available installed models.
@@ -335,11 +304,7 @@ pub fn build_agent(timeout: Duration) -> Result<ureq::Agent, String> {
         ureq::tls::TlsConfig::builder().root_certs(ureq::tls::RootCerts::new_with_certs(&certs)).build()
     };
 
-    Ok(ureq::Agent::config_builder()
-        .timeout_global(Some(timeout))
-        .tls_config(tls)
-        .build()
-        .new_agent())
+    Ok(ureq::Agent::config_builder().timeout_global(Some(timeout)).tls_config(tls).build().new_agent())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -349,17 +314,11 @@ pub fn build_agent(_timeout: Duration) -> Result<(), String> {
 
 /// Fetches Google Translate response.
 fn fetch_google_translate(query: &str) -> Result<LookupResult, String> {
-    let url = format!(
-        "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=pt&dt=t&dt=bd&dt=md&q={}",
-        url_encode(query)
-    );
+    let url = format!("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=pt&dt=t&dt=bd&dt=md&q={}", url_encode(query));
 
     let agent = build_agent(Duration::from_secs(10))?;
-    let mut resp = agent
-        .get(&url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        .call()
-        .map_err(|e| format!("Falha de conexão: {e}"))?;
+    let mut resp =
+        agent.get(&url).header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)").call().map_err(|e| format!("Falha de conexão: {e}"))?;
 
     let body = resp.body_mut().with_config().limit(1 << 20).read_to_string().map_err(|e| e.to_string())?;
     let val: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
@@ -412,23 +371,15 @@ fn fetch_google_translate(query: &str) -> Result<LookupResult, String> {
         }
     }
 
-    Ok(LookupResult {
-        title: "Google Tradutor (PT-BR)".into(),
-        text: translated,
-        source_lang,
-        definitions,
-    })
+    Ok(LookupResult { title: "Google Tradutor (PT-BR)".into(), text: translated, source_lang, definitions })
 }
 
 /// Fetches Dicio definition (Portuguese dictionary).
 fn fetch_dicio(word: &str) -> Result<LookupResult, String> {
     let url = format!("https://www.dicio.com.br/pesquisa.php?q={}", url_encode(word));
     let agent = build_agent(Duration::from_secs(10))?;
-    let mut resp = agent
-        .get(&url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        .call()
-        .map_err(|e| format!("Falha de conexão: {e}"))?;
+    let mut resp =
+        agent.get(&url).header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)").call().map_err(|e| format!("Falha de conexão: {e}"))?;
 
     let html = resp.body_mut().with_config().limit(1 << 20).read_to_string().map_err(|e| e.to_string())?;
 
@@ -450,12 +401,7 @@ fn fetch_dicio(word: &str) -> Result<LookupResult, String> {
         return Err("Definição vazia".into());
     }
 
-    Ok(LookupResult {
-        title: "Definição (Dicio)".into(),
-        text: cleaned,
-        source_lang: Some("pt".into()),
-        definitions: Vec::new(),
-    })
+    Ok(LookupResult { title: "Definição (Dicio)".into(), text: cleaned, source_lang: Some("pt".into()), definitions: Vec::new() })
 }
 
 /// Strips HTML tags and normalizes whitespace.
@@ -547,127 +493,119 @@ pub fn render_balloon(ui: &mut Ui, app: &mut PdfCraftApp, viewport: Rect) {
     let mut open_prefs = false;
 
     let id = Id::new("selection-lookup-card");
-    let area = egui::Area::new(id)
-        .order(Order::Foreground)
-        .fixed_pos(Pos2::new(x, y))
-        .show(ui.ctx(), |ui| {
-            let t = crate::theme::Tokens::get(ui.ctx());
+    let area = egui::Area::new(id).order(Order::Foreground).fixed_pos(Pos2::new(x, y)).show(ui.ctx(), |ui| {
+        let t = crate::theme::Tokens::get(ui.ctx());
 
-            egui::Frame::NONE
-                .fill(t.card)
-                .stroke(Stroke::new(1.0, t.border))
-                .corner_radius(CornerRadius::same(10))
-                .inner_margin(Margin::same(14))
-                .shadow(egui::Shadow {
-                    offset: [0, 4],
-                    blur: 16,
-                    spread: 0,
-                    color: Color32::from_black_alpha(if t.dark() { 120 } else { 40 }),
-                })
-                .show(ui, |ui| {
-                    ui.set_width(balloon_width);
+        egui::Frame::NONE
+            .fill(t.card)
+            .stroke(Stroke::new(1.0, t.border))
+            .corner_radius(CornerRadius::same(10))
+            .inner_margin(Margin::same(14))
+            .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 120 } else { 40 }) })
+            .show(ui, |ui| {
+                ui.set_width(balloon_width);
 
-                    // Header
-                    ui.horizontal(|ui| {
-                        let header_title = match &active.status {
-                            LookupStatus::Ready(res) => res.title.as_str(),
-                            _ => match active.kind {
-                                LookupKind::Translate => "Google Tradutor",
-                                LookupKind::Dictionary => "Dicionário",
-                                LookupKind::AiExplain => "Assistente IA: Explicação",
-                                LookupKind::AiSummarize => "Assistente IA: Resumo",
-                            },
-                        };
+                // Header
+                ui.horizontal(|ui| {
+                    let header_title = match &active.status {
+                        LookupStatus::Ready(res) => res.title.as_str(),
+                        _ => match active.kind {
+                            LookupKind::Translate => "Google Tradutor",
+                            LookupKind::Dictionary => "Dicionário",
+                            LookupKind::AiExplain => "Assistente IA: Explicação",
+                            LookupKind::AiSummarize => "Assistente IA: Resumo",
+                        },
+                    };
 
-                        let icon = match active.kind {
-                            LookupKind::Translate => "🌐",
-                            LookupKind::Dictionary => "📖",
-                            LookupKind::AiExplain => "🤖",
-                            LookupKind::AiSummarize => "📝",
-                        };
+                    let icon = match active.kind {
+                        LookupKind::Translate => "🌐",
+                        LookupKind::Dictionary => "📖",
+                        LookupKind::AiExplain => "🤖",
+                        LookupKind::AiSummarize => "📝",
+                    };
 
-                        ui.label(egui::RichText::new(format!("{icon} {header_title}")).strong().size(13.0));
+                    ui.label(egui::RichText::new(format!("{icon} {header_title}")).strong().size(13.0));
 
-                        if let LookupStatus::Ready(res) = &active.status
-                            && let Some(lang) = &res.source_lang
-                        {
-                            let badge = format!("{} ➔ PT", lang_name(lang));
-                            ui.label(egui::RichText::new(badge).size(11.0).color(Color32::from_rgb(24, 128, 56)));
+                    if let LookupStatus::Ready(res) = &active.status
+                        && let Some(lang) = &res.source_lang
+                    {
+                        let badge = format!("{} ➔ PT", lang_name(lang));
+                        ui.label(egui::RichText::new(badge).size(11.0).color(Color32::from_rgb(24, 128, 56)));
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("✕").on_hover_text("Fechar (Esc)").clicked() {
+                            close = true;
                         }
-
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button("✕").on_hover_text("Fechar (Esc)").clicked() {
-                                close = true;
+                        if is_ai {
+                            if ui.button("⚙").on_hover_text("Configurações do Ollama").clicked() {
+                                open_prefs = true;
                             }
+                        } else if ui.button("🌐").on_hover_text("Abrir no navegador").clicked() {
+                            open_browser = Some(active.target_url.clone());
+                        }
+                        if let LookupStatus::Ready(res) = &active.status {
+                            let btn_label = if active.copied { "✓ Copiado" } else { "📋 Copiar" };
+                            if ui.button(btn_label).clicked() {
+                                copy_text = Some(res.text.clone());
+                            }
+                            let note_label = if active.note_added { "✓ Nota Inserida" } else { "📌 Inserir como Nota" };
+                            if ui.button(note_label).on_hover_text("Inserir este resultado como nota/anotação no PDF").clicked() {
+                                insert_note = Some(res.text.clone());
+                            }
+                        }
+                    });
+                });
+
+                ui.add_space(6.0);
+                ui.separator();
+                ui.add_space(6.0);
+
+                // Content
+                match &active.status {
+                    LookupStatus::Loading => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            let msg = if is_ai { "Consultando Ollama..." } else { "Consultando..." };
+                            ui.label(egui::RichText::new(msg).italics());
+                        });
+                    }
+                    LookupStatus::Ready(res) => {
+                        egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                ui.label(egui::RichText::new(&res.text).size(13.5));
+
+                                if !res.definitions.is_empty() {
+                                    ui.add_space(8.0);
+                                    ui.label(egui::RichText::new("Definições / Significados:").size(12.0).strong());
+                                    for def in &res.definitions {
+                                        ui.horizontal(|ui| {
+                                            ui.label("•");
+                                            ui.label(egui::RichText::new(def).size(12.0));
+                                        });
+                                    }
+                                }
+                            });
+                        });
+                    }
+                    LookupStatus::Error(err) => {
+                        ui.vertical(|ui| {
+                            ui.label(egui::RichText::new("Não foi possível carregar a resposta.").color(Color32::from_rgb(217, 48, 37)));
+                            ui.add_space(4.0);
+                            ui.label(egui::RichText::new(err).size(11.0));
+                            ui.add_space(8.0);
                             if is_ai {
-                                if ui.button("⚙").on_hover_text("Configurações do Ollama").clicked() {
+                                if ui.button("⚙ Configurar Ollama em Preferências").clicked() {
                                     open_prefs = true;
                                 }
-                            } else if ui.button("🌐").on_hover_text("Abrir no navegador").clicked() {
+                            } else if ui.button("🌐 Abrir no Navegador Web").clicked() {
                                 open_browser = Some(active.target_url.clone());
                             }
-                            if let LookupStatus::Ready(res) = &active.status {
-                                let btn_label = if active.copied { "✓ Copiado" } else { "📋 Copiar" };
-                                if ui.button(btn_label).clicked() {
-                                    copy_text = Some(res.text.clone());
-                                }
-                                let note_label = if active.note_added { "✓ Nota Inserida" } else { "📌 Inserir como Nota" };
-                                if ui.button(note_label).on_hover_text("Inserir este resultado como nota/anotação no PDF").clicked() {
-                                    insert_note = Some(res.text.clone());
-                                }
-                            }
                         });
-                    });
-
-                    ui.add_space(6.0);
-                    ui.separator();
-                    ui.add_space(6.0);
-
-                    // Content
-                    match &active.status {
-                        LookupStatus::Loading => {
-                            ui.horizontal(|ui| {
-                                ui.spinner();
-                                let msg = if is_ai { "Consultando Ollama..." } else { "Consultando..." };
-                                ui.label(egui::RichText::new(msg).italics());
-                            });
-                        }
-                        LookupStatus::Ready(res) => {
-                            egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
-                                ui.vertical(|ui| {
-                                    ui.label(egui::RichText::new(&res.text).size(13.5));
-
-                                    if !res.definitions.is_empty() {
-                                        ui.add_space(8.0);
-                                        ui.label(egui::RichText::new("Definições / Significados:").size(12.0).strong());
-                                        for def in &res.definitions {
-                                            ui.horizontal(|ui| {
-                                                ui.label("•");
-                                                ui.label(egui::RichText::new(def).size(12.0));
-                                            });
-                                        }
-                                    }
-                                });
-                            });
-                        }
-                        LookupStatus::Error(err) => {
-                            ui.vertical(|ui| {
-                                ui.label(egui::RichText::new("Não foi possível carregar a resposta.").color(Color32::from_rgb(217, 48, 37)));
-                                ui.add_space(4.0);
-                                ui.label(egui::RichText::new(err).size(11.0));
-                                ui.add_space(8.0);
-                                if is_ai {
-                                    if ui.button("⚙ Configurar Ollama em Preferências").clicked() {
-                                        open_prefs = true;
-                                    }
-                                } else if ui.button("🌐 Abrir no Navegador Web").clicked() {
-                                    open_browser = Some(active.target_url.clone());
-                                }
-                            });
-                        }
                     }
-                });
-        });
+                }
+            });
+    });
 
     ui.ctx().data_mut(|d| d.insert_temp(balloon_rect_id, area.response.rect));
 
@@ -717,18 +655,11 @@ mod tests {
 
     #[test]
     fn test_format_url() {
-        let handler = SelectionHandler {
-            name: "Dicio".into(),
-            url: "https://www.dicio.com.br/pesquisa.php?q=${selection}".into(),
-            shortcut: "Ctrl+D".into(),
-        };
+        let handler =
+            SelectionHandler { name: "Dicio".into(), url: "https://www.dicio.com.br/pesquisa.php?q=${selection}".into(), shortcut: "Ctrl+D".into() };
         assert_eq!(handler.format_url("palavra chave"), "https://www.dicio.com.br/pesquisa.php?q=palavra+chave");
 
-        let sumatra_style = SelectionHandler {
-            name: "Sumatra".into(),
-            url: "https://example.com/?q=$${selection}".into(),
-            shortcut: "".into(),
-        };
+        let sumatra_style = SelectionHandler { name: "Sumatra".into(), url: "https://example.com/?q=$${selection}".into(), shortcut: "".into() };
         assert_eq!(sumatra_style.format_url("test"), "https://example.com/?q=test");
     }
 
@@ -754,4 +685,3 @@ mod tests {
         assert_eq!(defs, back);
     }
 }
-

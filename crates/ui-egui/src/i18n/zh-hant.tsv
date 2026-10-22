@@ -2393,3 +2393,5 @@ animation effects	Off	關
 	Summarize page or document	摘要頁面或文件
 	Translate page or document	翻譯頁面或文件
 	Bring your own model (Ollama)	使用自己的模型 (Ollama)
+	Invert everything	全部反轉
+	Text only, keep images	僅文字,保留圖片

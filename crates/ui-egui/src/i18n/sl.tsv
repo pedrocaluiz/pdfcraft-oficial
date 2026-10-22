@@ -2448,3 +2448,5 @@ animation effects	Off	Izklopljeni
 	Summarize page or document	Povzemi stran ali dokument
 	Translate page or document	Prevedi stran ali dokument
 	Bring your own model (Ollama)	Uporabite svoj model (Ollama)
+	Invert everything	Obrni vse
+	Text only, keep images	Samo besedilo, slike ostanejo

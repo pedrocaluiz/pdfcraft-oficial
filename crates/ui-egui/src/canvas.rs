@@ -3776,11 +3776,8 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
                             if handler.name == "Google Tradutor PT-BR" || handler.name == "Definição (Dicio)" {
                                 continue;
                             }
-                            let label = if handler.shortcut.is_empty() {
-                                handler.name.clone()
-                            } else {
-                                format!("{} ({})", handler.name, handler.shortcut)
-                            };
+                            let label =
+                                if handler.shortcut.is_empty() { handler.name.clone() } else { format!("{} ({})", handler.name, handler.shortcut) };
                             if ui.button(label).clicked() {
                                 let url = handler.format_url(&sel_str);
                                 selection_open_url = Some(url);
@@ -4168,6 +4165,7 @@ enum SelectionAction {
 }
 
 /// Actions on an existing text selection, next to the selected words.
+#[allow(clippy::too_many_arguments)]
 fn selection_actions(
     ui: &mut egui::Ui,
     viewport: Rect,

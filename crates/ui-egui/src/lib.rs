@@ -30,9 +30,9 @@ macro_rules! tl_ctx {
     };
 }
 
-pub mod ai_assistant;
 mod a11y_ui;
 mod actions_ui;
+pub mod ai_assistant;
 mod appearance;
 pub mod canvas;
 mod chrome;
@@ -537,6 +537,9 @@ pub struct PdfCraftApp {
     pub invert_colors: bool,
     /// Paper and ink colours of the inverted page (Preferences ▸ Reading colours).
     pub invert_palette: pdfcraft_render::InvertPalette,
+    /// Inverted view keeps pictures as they are: text and line art take the palette (through the
+    /// reading-colours mapping) and images are untouched. Off inverts every pixel of the page.
+    pub invert_keep_images: bool,
     /// Active in-app selection lookup balloon (Google Translate, Dicio).
     pub active_lookup: Option<lookup::ActiveLookup>,
     /// Configured selection handlers.
@@ -934,6 +937,7 @@ impl PdfCraftApp {
             reading_colors: Default::default(),
             invert_colors: false,
             invert_palette: pdfcraft_render::InvertPalette::default(),
+            invert_keep_images: true,
             active_lookup: None,
             selection_handlers: lookup::SelectionHandler::defaults(),
             ollama_config: lookup::OllamaConfig::default(),
@@ -2054,9 +2058,42 @@ impl PdfCraftApp {
     /// Colors). A document the change actually touches re-renders.
     pub fn set_reading_colors(&mut self, colors: pdfcraft_render::ReadingColors) {
         self.reading_colors = colors;
+        self.sync_night_all();
+    }
+
+    /// The reading colours documents render with. The inverted view that keeps images maps text and
+    /// line art to the palette's ink and paper, and leaves pictures alone; otherwise it is the
+    /// reading-colours preference.
+    fn night_reading(&self) -> pdfcraft_render::ReadingColors {
+        if self.invert_colors && self.invert_keep_images {
+            let params = pdfcraft_render::ReadingParams {
+                text: self.invert_palette.ink,
+                background: self.invert_palette.paper,
+                only_black: false,
+                line_art: true,
+            };
+            pdfcraft_render::ReadingColors { params: Some(params) }
+        } else {
+            self.reading_colors
+        }
+    }
+
+    /// Gives document `id` the app-wide night-reading state: pixel inversion (every pixel, pictures
+    /// included) or the text-only mapping through reading colours. `true` when anything changed.
+    fn sync_night(&mut self, id: pdfcraft_engine::DocId) -> bool {
+        let pixels = self.invert_colors && !self.invert_keep_images;
+        let reading = self.night_reading();
+        let a = self.session.set_invert_palette(id, self.invert_palette);
+        let b = self.session.set_invert_colors(id, pixels);
+        let c = self.session.set_reading_colors(id, reading);
+        a || b || c
+    }
+
+    /// [`Self::sync_night`] for every open document; the ones it touches re-render.
+    fn sync_night_all(&mut self) {
         for i in 0..self.views.len() {
-            // Idempotent per document: the engine says whether anything changed.
-            if self.session.set_reading_colors(self.views[i].id, colors) {
+            let id = self.views[i].id;
+            if self.sync_night(id) {
                 self.views[i].invalidate_content();
             }
         }
@@ -2064,29 +2101,26 @@ impl PdfCraftApp {
 
     /// Give document `id` the app-wide invert setting and palette.
     pub(crate) fn apply_invert(&mut self, id: pdfcraft_engine::DocId) {
-        self.session.set_invert_colors(id, self.invert_colors);
-        self.session.set_invert_palette(id, self.invert_palette);
+        self.sync_night(id);
     }
 
     /// Set the paper and ink colours of the inverted page, for every open document.
     pub fn set_invert_palette(&mut self, palette: pdfcraft_render::InvertPalette) {
         self.invert_palette = palette;
-        for i in 0..self.views.len() {
-            if self.session.set_invert_palette(self.views[i].id, palette) {
-                self.views[i].invalidate_content();
-            }
-        }
+        self.sync_night_all();
     }
 
     /// Invert page colours (View ▸ Invert colors): sets the app-wide preference and applies it to
     /// every open document, which re-renders. The files never change.
     pub fn set_invert_colors(&mut self, invert: bool) {
         self.invert_colors = invert;
-        for i in 0..self.views.len() {
-            if self.session.set_invert_colors(self.views[i].id, invert) {
-                self.views[i].invalidate_content();
-            }
-        }
+        self.sync_night_all();
+    }
+
+    /// Whether the inverted view keeps pictures as they are (text only) or inverts every pixel.
+    pub fn set_invert_keep_images(&mut self, keep: bool) {
+        self.invert_keep_images = keep;
+        self.sync_night_all();
     }
 
     /// Enable the Linux desktop portal in a native window. Headless contexts keep
@@ -2321,6 +2355,7 @@ impl PdfCraftApp {
             "reading_colors": self.reading_colors,
             "invert_colors": self.invert_colors,
             "invert_palette": self.invert_palette,
+            "invert_keep_images": self.invert_keep_images,
             "selection_handlers": self.selection_handlers,
             "ollama_config": self.ollama_config,
             // Null follows the system's text scaling.
@@ -2456,6 +2491,9 @@ impl PdfCraftApp {
         if let Some(on) = v["invert_colors"].as_bool() {
             self.invert_colors = on;
         }
+        if let Some(keep) = v["invert_keep_images"].as_bool() {
+            self.invert_keep_images = keep;
+        }
         if let Ok(handlers) = serde_json::from_value::<Vec<lookup::SelectionHandler>>(v["selection_handlers"].clone())
             && !handlers.is_empty()
         {
@@ -2554,33 +2592,29 @@ impl PdfCraftApp {
 
     /// Inserts a sticky note annotation on the active page with `text` content.
     pub fn insert_sticky_note(&mut self, text: &str) -> bool {
-        let (Some(i), Some((_, id))) = (self.active, self.active_ids()) else { return false; };
-        let Some(doc) = self.session.get(id) else { return false; };
+        let (Some(i), Some((_, id))) = (self.active, self.active_ids()) else {
+            return false;
+        };
+        let Some(doc) = self.session.get(id) else {
+            return false;
+        };
         if !doc.allows_annotation() {
             self.notify("Este documento não permite anotações");
             return false;
         }
         let page = self.views[i].current;
-        let Some(page_info) = doc.info.pages.get(page) else { return false; };
+        let Some(page_info) = doc.info.pages.get(page) else {
+            return false;
+        };
 
         let (x, y) = self.views[i].selection_view_point().map(|p| (p[0], p[1])).unwrap_or((36.0, 36.0));
         let user_pt = page_info.view_to_user(x, y);
         let at = [user_pt[0] as f64, user_pt[1] as f64];
         let shape = pdfcraft_engine::Shape::Note { at, icon: pdfcraft_engine::NoteIcon::Comment };
         let style = pdfcraft_engine::Style::default_for(&shape);
-        let author = if self.comment_prefs.author.is_empty() {
-            "Assistente IA".to_string()
-        } else {
-            self.comment_prefs.author.clone()
-        };
+        let author = if self.comment_prefs.author.is_empty() { "Assistente IA".to_string() } else { self.comment_prefs.author.clone() };
 
-        let edit = pdfcraft_engine::Edit::AddAnnotation(pdfcraft_engine::NewAnnotation {
-            page,
-            shape,
-            style,
-            contents: text.to_string(),
-            author,
-        });
+        let edit = pdfcraft_engine::Edit::AddAnnotation(pdfcraft_engine::NewAnnotation { page, shape, style, contents: text.to_string(), author });
 
         let ok = self.apply_edit(edit);
         if ok {
@@ -3037,11 +3071,15 @@ impl PdfCraftApp {
             } else if ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::D))) {
                 self.active_lookup = Some(lookup::ActiveLookup::start(&text, lookup::LookupKind::Dictionary, pos, None, Some(&self.ollama_config)));
                 selection_shortcut_handled = true;
-            } else if self.ollama_config.enabled && ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::E))) {
+            } else if self.ollama_config.enabled
+                && ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::E)))
+            {
                 self.active_lookup = Some(lookup::ActiveLookup::start(&text, lookup::LookupKind::AiExplain, pos, None, Some(&self.ollama_config)));
                 selection_shortcut_handled = true;
             } else if self.ollama_config.enabled
-                && ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::E)))
+                && ctx.input_mut(|input| {
+                    input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::E))
+                })
             {
                 self.active_lookup = Some(lookup::ActiveLookup::start(&text, lookup::LookupKind::AiSummarize, pos, None, Some(&self.ollama_config)));
                 selection_shortcut_handled = true;
@@ -3151,11 +3189,7 @@ impl PdfCraftApp {
         }
         if ctx.input(|input| input.key_pressed(Key::A)) {
             let doc_permits = self.session.get(self.views[i].id).is_some_and(|d| d.allows_annotation());
-            let selection = if doc_permits {
-                self.session.get(self.views[i].id).and_then(|d| self.views[i].selection_quads(&d.info))
-            } else {
-                None
-            };
+            let selection = if doc_permits { self.session.get(self.views[i].id).and_then(|d| self.views[i].selection_quads(&d.info)) } else { None };
             if let Some((page, quads)) = selection {
                 self.views[i].clear_selection();
                 let tool = comments::CommentTool::Highlight;

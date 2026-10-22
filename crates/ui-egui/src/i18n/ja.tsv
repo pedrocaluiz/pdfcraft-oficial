@@ -2443,3 +2443,5 @@ animation effects	Off	オフ
 	Summarize page or document	ページまたは文書を要約
 	Translate page or document	ページまたは文書を翻訳
 	Bring your own model (Ollama)	自分のモデルを使う (Ollama)
+	Invert everything	すべて反転
+	Text only, keep images	テキストのみ(画像はそのまま)

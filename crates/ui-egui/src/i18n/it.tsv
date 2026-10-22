@@ -2655,3 +2655,5 @@ certificate	SHA-256 digest	Impronta SHA-256
 	Summarize page or document	Riassumi pagina o documento
 	Translate page or document	Traduci pagina o documento
 	Bring your own model (Ollama)	Usa il tuo modello (Ollama)
+	Invert everything	Inverti tutto
+	Text only, keep images	Solo il testo, mantieni le immagini

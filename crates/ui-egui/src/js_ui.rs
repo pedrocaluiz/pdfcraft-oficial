@@ -465,6 +465,13 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
         app.set_invert_colors(invert);
     }
     ui.horizontal(|ui| {
+        for (keep, label) in [(false, "Invert everything"), (true, "Text only, keep images")] {
+            if ui.selectable_label(app.invert_keep_images == keep, tl!(label)).clicked() {
+                app.set_invert_keep_images(keep);
+            }
+        }
+    });
+    ui.horizontal(|ui| {
         for (palette, label) in [
             (pdfcraft_render::InvertPalette::SOFT_DARK, "Soft dark gray"),
             (pdfcraft_render::InvertPalette::PURE, "Black and white"),
@@ -536,25 +543,27 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
                     }
                 }
             });
-            if let Some(Ok(models)) = &app.ollama_test_status {
-                if !models.is_empty() {
-                    ui.add_space(4.0);
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(egui::RichText::new("Modelos locais instalados:").strong().size(12.0));
-                        for m in models {
-                            let is_sel = app.ollama_config.model == *m;
-                            if ui.selectable_label(is_sel, m).clicked() {
-                                app.ollama_config.model = m.clone();
-                            }
+            if let Some(Ok(models)) = &app.ollama_test_status
+                && !models.is_empty()
+            {
+                ui.add_space(4.0);
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(egui::RichText::new("Modelos locais instalados:").strong().size(12.0));
+                    for m in models {
+                        let is_sel = app.ollama_config.model == *m;
+                        if ui.selectable_label(is_sel, m).clicked() {
+                            app.ollama_config.model = m.clone();
                         }
-                    });
-                }
+                    }
+                });
             }
             ui.add_space(6.0);
             ui.label(
-                egui::RichText::new("100% offline e privado. Ao selecionar qualquer texto no PDF, use '🤖 Explicar' (Ctrl+E) ou '📝 Resumir' (Ctrl+Shift+E).")
-                    .small()
-                    .color(t.text_muted),
+                egui::RichText::new(
+                    "100% offline e privado. Ao selecionar qualquer texto no PDF, use '🤖 Explicar' (Ctrl+E) ou '📝 Resumir' (Ctrl+Shift+E).",
+                )
+                .small()
+                .color(t.text_muted),
             );
         }
     });

@@ -2465,3 +2465,5 @@ animation effects	Off	Вимкнено
 	Summarize page or document	Стисло викласти сторінку або документ
 	Translate page or document	Перекласти сторінку або документ
 	Bring your own model (Ollama)	Використайте власну модель (Ollama)
+	Invert everything	Інвертувати все
+	Text only, keep images	Лише текст, зображення без змін

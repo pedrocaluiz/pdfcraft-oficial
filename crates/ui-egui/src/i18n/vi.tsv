@@ -2696,3 +2696,5 @@ key	Space	Space
 	Summarize page or document	Tóm tắt trang hoặc tài liệu
 	Translate page or document	Dịch trang hoặc tài liệu
 	Bring your own model (Ollama)	Dùng mô hình của riêng bạn (Ollama)
+	Invert everything	Đảo ngược tất cả
+	Text only, keep images	Chỉ văn bản, giữ nguyên hình ảnh
