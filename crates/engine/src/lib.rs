@@ -5061,7 +5061,6 @@ impl Session {
     pub fn render_config(&self, id: DocId) -> Option<RenderConfig> {
         Some(self.get(id)?.config.clone())
     }
-    }
 
     /// Acrobat's Summarize Comments ("Comments only" layout): a new PDF listing every comment
     /// with its number, author, type, date, text and replies, grouped by page.
