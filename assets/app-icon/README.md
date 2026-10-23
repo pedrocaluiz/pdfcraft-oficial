@@ -1,5 +1,11 @@
 # PdfCraft app icon
 
+> **Fork note:** in this fork the raster app icons (`pdfcraft-1024.png`, `pdfcraft.icns`, `pdfcraft.ico` and
+> `hicolor/<n>x<n>/`) are a red PDF document icon supplied by the project owner, restored and upscaled with an
+> AI image tool (Codex imagegen) from the owner's own image. The SVG masters and the description below are the
+> upstream lion icon, kept for reference; `packaging/icons.sh` would regenerate the lion from them and overwrite
+> the files above.
+
 <img src="pdfcraft-small.svg" alt="PdfCraft app icon: an engraved lion's head on green" width="128">
 
 **Creature:** a lion, in a frontal head-and-shoulders portrait, mane running off the bottom of the tile.
