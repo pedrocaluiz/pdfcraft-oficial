@@ -5,6 +5,8 @@
 > AI image tool (Codex imagegen) from the owner's own image. The SVG masters and the description below are the
 > upstream lion icon, kept for reference; `packaging/icons.sh` would regenerate the lion from them and overwrite
 > the files above.
+> The macOS files (`pdfcraft-1024.png`, `pdfcraft.icns`) put the artwork on a white rounded-square tile, as macOS
+> app icons are drawn; the Windows and Linux files keep the artwork on a transparent background.
 
 <img src="pdfcraft-small.svg" alt="PdfCraft app icon: an engraved lion's head on green" width="128">
 

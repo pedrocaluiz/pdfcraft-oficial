@@ -2904,7 +2904,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "assets/app-icon/LICENSE.txt"
 kind = "icon"
 usage = "Runtime window/Dock icon on macOS (apps/pdfcraft/src/main.rs)"
-sha256 = "05e096422d33366e1023d79eb17de8eba62d67ae45b218d899286ed82568cc97"
+sha256 = "ff67001214c481a67f0847cc10dae611da3575705ae48233123194eeba68cc9a"
 
 [[asset]]
 path = "assets/app-icon/pdfcraft.icns"
@@ -2915,7 +2915,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "assets/app-icon/LICENSE.txt"
 kind = "icon"
 usage = "macOS app bundle icon"
-sha256 = "ff704274d08636619f1b6797be995b93803457793a4e97cb0056a2201983f8e4"
+sha256 = "7f726dc4c4c523ce0765aa8899fa548ffe4d220d856a69437e67b3f6e3e41b7a"
 
 [[asset]]
 path = "assets/app-icon/pdfcraft.ico"
