@@ -462,7 +462,7 @@ pub fn render_balloon(ui: &mut Ui, app: &mut PdfCraftApp, viewport: Rect) {
         return;
     }
 
-    let balloon_rect_id = Id::new("selection-lookup-balloon-rect");
+    let balloon_rect_id = Id::unique("selection-lookup-balloon-rect");
     let previous_rect = ui.ctx().data(|d| d.get_temp::<Rect>(balloon_rect_id));
 
     // Closes on clicking outside the balloon (left or right click)
@@ -492,7 +492,7 @@ pub fn render_balloon(ui: &mut Ui, app: &mut PdfCraftApp, viewport: Rect) {
     let mut open_browser = None;
     let mut open_prefs = false;
 
-    let id = Id::new("selection-lookup-card");
+    let id = Id::unique("selection-lookup-card");
     let area = egui::Area::new(id).order(Order::Foreground).fixed_pos(Pos2::new(x, y)).show(ui.ctx(), |ui| {
         let t = crate::theme::Tokens::get(ui.ctx());
 
