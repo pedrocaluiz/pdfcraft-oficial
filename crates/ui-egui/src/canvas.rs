@@ -1194,6 +1194,7 @@ struct PageEnv<'a> {
     fill_text_color: [f64; 3],
     today: (i64, u32, u32),
     can_paste_image: bool,
+    selection_handlers: &'a [crate::lookup::SelectionHandler],
 }
 
 /// What the page-scroll closure produces for the rest of the frame.
@@ -1215,6 +1216,8 @@ struct PageOut {
     primary_down: bool,
     refused: Option<String>,
     stamp_placed: bool,
+    selection_lookup_action: Option<(String, crate::lookup::LookupKind, Pos2, Option<String>)>,
+    selection_open_url: Option<String>,
 }
 
 /// The page-scroll closure's body: lays out and draws the visible pages, their tools and overlays, and
@@ -2554,8 +2557,11 @@ fn draw_pages(
         primary_down: _,
         refused,
         stamp_placed,
+        ..
     } = page_out;
     let mut page_action: Option<PageMenuAction> = None;
+    let mut selection_lookup_action = None;
+    let mut selection_open_url = None;
     let painter = ui.painter();
     if calc_order {
         view.calc_order.set_hover_page(calc_hover);
@@ -2758,6 +2764,42 @@ fn draw_pages(
             can_paste,
             has_annotations: !info.annotations.is_empty(),
         };
+        if let Some(selection) = view.selection
+            && let Some(text) = view.texts.get(&selection.page)
+        {
+            let selected = selection.text(text);
+            if !selected.is_empty() {
+                let sel_str = selected.to_string();
+                let click_pos = ui.input(|i| i.pointer.hover_pos()).unwrap_or(env.avail.min + vec2(100.0, 100.0));
+                ui.menu_button("Seleção", |ui| {
+                    if ui.button("Google Tradutor PT-BR (Ctrl+T)").clicked() {
+                        selection_lookup_action = Some((sel_str.clone(), crate::lookup::LookupKind::Translate, click_pos, None));
+                        ui.close();
+                    }
+                    if ui.button("Definição (Dicio) (Ctrl+D)").clicked() {
+                        selection_lookup_action = Some((sel_str.clone(), crate::lookup::LookupKind::Dictionary, click_pos, None));
+                        ui.close();
+                    }
+                    ui.separator();
+                    for handler in env.selection_handlers {
+                        if handler.name == "Google Tradutor PT-BR" || handler.name == "Definição (Dicio)" {
+                            continue;
+                        }
+                        let label = if handler.shortcut.is_empty() {
+                            handler.name.clone()
+                        } else {
+                            format!("{} ({})", handler.name, handler.shortcut)
+                        };
+                        if ui.button(label).clicked() {
+                            let url = handler.format_url(&sel_str);
+                            selection_open_url = Some(url);
+                            ui.close();
+                        }
+                    }
+                });
+                ui.separator();
+            }
+        }
         default_page_context_menu(ui, page, at, perms, &mut page_action);
     });
     if !resp.context_menu_opened() {
@@ -2780,6 +2822,8 @@ fn draw_pages(
         primary_down: ptr.primary_down,
         refused,
         stamp_placed,
+        selection_lookup_action,
+        selection_open_url,
     };
     (wanted, visible_now)
 }
@@ -3774,6 +3818,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         fill_text_color: app.fill_text_color,
         today,
         can_paste_image,
+        selection_handlers: &app.selection_handlers,
     };
     let mut page_out = PageOut::default();
     let out = page_scroll(ui, scroll, egui::Id::unique(("page-view-scope", view.id)), app.show_page_edge_shadows, |ui, viewport| {
@@ -3796,7 +3841,15 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         primary_down,
         mut refused,
         stamp_placed,
+        selection_lookup_action: page_lookup_action,
+        selection_open_url: page_open_url,
     } = page_out;
+    if page_lookup_action.is_some() {
+        selection_lookup_action = page_lookup_action;
+    }
+    if page_open_url.is_some() {
+        selection_open_url = page_open_url;
+    }
     view.single_edges = visible_pages.first().copied().filter(|_| !view.continuous).map(|page| {
         // At the top once the page's top edge shows where going to a page puts it (a gap
         // below the window's top). Within a point, as for wheel paging, so layout rounding
@@ -3899,6 +3952,8 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         form,
         generation,
         avail,
+        selection_lookup_action,
+        selection_open_url,
     };
     apply_frame_requests(app, index, ui, requests);
 }
@@ -3921,6 +3976,8 @@ struct FrameRequests {
     form: Arc<Vec<pdfcraft_engine::FormField>>,
     generation: u64,
     avail: Rect,
+    selection_lookup_action: Option<(String, crate::lookup::LookupKind, Pos2, Option<String>)>,
+    selection_open_url: Option<String>,
 }
 
 /// Opens the dialogs and runs the app commands the frame asked for.
@@ -3943,6 +4000,8 @@ fn apply_frame_requests(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui, 
         form,
         generation,
         avail,
+        selection_lookup_action,
+        selection_open_url,
     } = requests;
     if let Some((page, at)) = app.views[index].comments.attach_at.take() {
         app.attach_file_comment(page, at);

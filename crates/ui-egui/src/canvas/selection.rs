@@ -198,12 +198,13 @@ pub(super) fn selection_actions(
         |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
+                    let highlight_label = format!("{} (A)", tl!("Highlight"));
                     for (label, action) in [
-                        (tl!("Add comment"), SelectionAction::Note),
-                        (tl!("Highlight"), SelectionAction::Markup(comments::CommentTool::Highlight)),
-                        (tl!("Underline"), SelectionAction::Markup(comments::CommentTool::Underline)),
-                        (tl!("Strikethrough"), SelectionAction::Markup(comments::CommentTool::StrikeOut)),
-                        (tl!("Replace text"), SelectionAction::Replace),
+                        (tl!("Add comment").to_string(), SelectionAction::Note),
+                        (highlight_label, SelectionAction::Markup(comments::CommentTool::Highlight)),
+                        (tl!("Underline").to_string(), SelectionAction::Markup(comments::CommentTool::Underline)),
+                        (tl!("Strikethrough").to_string(), SelectionAction::Markup(comments::CommentTool::StrikeOut)),
+                        (tl!("Replace text").to_string(), SelectionAction::Replace),
                     ] {
                         if ui.add_enabled(can_comment, egui::Button::new(label)).clicked() {
                             chosen = Some(action);
