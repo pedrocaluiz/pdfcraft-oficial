@@ -69,9 +69,9 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     app.active = None;
                     app.combine_tab.focused = false;
                 }
-                // Reserve the three icon buttons, Discord and their gaps outside the scrolling tabs.
+                // Reserve the four icon buttons, Discord and their gaps outside the scrolling tabs.
                 let controls_width = ui.fonts_mut(|f| f.layout_no_wrap("Discord".into(), theme::medium(13.0), t.text).size().x)
-                    + 3.0 * button
+                    + 4.0 * button
                     + 54.0
                     + window_controls::width(&controls.right);
                 // Open stays in sight after the tabs: its icon, text and padding, and the gaps around it.
@@ -306,7 +306,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         });
                     }
                     egui::Popup::context_menu(&response).id(response.id.with("theme_menu")).show(|ui| appearance_menu(app, ui));
-                    // Night reading: a click inverts the page colours; a right-click picks the palette.
+                    // Night reading: a click inverts the page colours; a right-click picks mode and palette.
                     let invert_tip = match pdfcraft_engine::commands::command("view.invert_colors").and_then(|c| c.shortcut) {
                         Some(shortcut) => format!("{} ({})", tl!("Invert colors"), crate::commands::shortcut_label(ui.ctx(), shortcut)),
                         None => tl!("Invert colors").to_string(),
@@ -328,7 +328,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         });
 }
 
-/// The right-click menu on the title bar's invert-colours button: the switch and the palettes.
+/// The right-click menu on the title bar's invert-colours button: the switch, the mode and the palette.
 fn invert_colors_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let mut invert = app.invert_colors;
     if ui.add(widgets::checkbox(&mut invert, tl!("Invert colors"))).changed() {
@@ -360,6 +360,7 @@ fn invert_colors_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         ui.close();
     }
 }
+
 /// The right-click menu on the title bar's theme button.
 fn appearance_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     if ui.button(tl!("Appearance settings…")).clicked() {

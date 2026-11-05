@@ -168,6 +168,14 @@ impl Session {
         Some(BookmarkPage { rows, next: (end < all.len()).then_some(end), truncated: doc.info.outline_more })
     }
 
+    /// The bookmark at `path` with everything under it, or the whole outline for `[]`, as a tree
+    /// another document can take ([`crate::Edit::ImportBookmarks`]). `None` when no document has
+    /// `id`, or its structure could not be read for editing.
+    pub fn outline_tree(&self, id: DocId, path: &[usize]) -> Option<Result<pdfcraft_organize::OutlineTree, pdfcraft_organize::OutlineError>> {
+        let editor = self.get(id)?.editor.as_ref()?;
+        Some(pdfcraft_organize::outline_tree(&editor.cos, path))
+    }
+
     /// Top-level bookmarks as split points: (first page of each part, its bookmark's title).
     pub fn bookmark_splits(&self, id: DocId) -> Vec<(usize, String)> {
         let Some(doc) = self.get(id) else { return Vec::new() };
@@ -269,42 +277,74 @@ impl Session {
         Some(self.get(id)?.config.reading_colors)
     }
 
-    /// Set whether document `id` renders with inverted colors.
-    /// Returns `true` if the setting changed; callers must drop cached rasters.
+    /// Set whether document `id` renders in the inverted view (View ▸ Invert colors). Returns
+    /// whether anything changed; callers must drop cached rasters for the document.
     pub fn set_invert_colors(&mut self, id: DocId, invert: bool) -> bool {
         let Some(doc) = self.docs.iter_mut().find(|d| d.id == id) else { return false };
         if doc.config.invert_colors == invert {
             return false;
         }
         doc.config.invert_colors = invert;
-        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), doc.config.clone());
+        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), display_config(&doc.config));
         doc.generation += 1;
         true
     }
 
-    /// Set the paper and ink colours of document `id`'s inverted view. Returns `true` if the
-    /// palette changed; callers must drop cached rasters (it only shows while colours are inverted).
+    /// Set the paper and ink colours of document `id`'s inverted view. Returns whether anything
+    /// on screen changed: the palette only shows while the view is on, so a change while it is off
+    /// is kept and returns `false`.
     pub fn set_invert_palette(&mut self, id: DocId, palette: pdfcraft_render::InvertPalette) -> bool {
         let Some(doc) = self.docs.iter_mut().find(|d| d.id == id) else { return false };
         if doc.config.invert_palette == palette {
             return false;
         }
         doc.config.invert_palette = palette;
+        self.rebuild_when_inverted(id)
+    }
+
+    /// Set whether document `id`'s inverted view keeps pictures as they are (text and line art
+    /// take the palette) or inverts every pixel. Like the palette, it only shows while the view is
+    /// on; the return value says whether anything on screen changed.
+    pub fn set_invert_keep_images(&mut self, id: DocId, keep: bool) -> bool {
+        let Some(doc) = self.docs.iter_mut().find(|d| d.id == id) else { return false };
+        if doc.config.invert_keep_images == keep {
+            return false;
+        }
+        doc.config.invert_keep_images = keep;
+        self.rebuild_when_inverted(id)
+    }
+
+    /// Rebuilds document `id`'s renderer after a change to a setting that only shows while the
+    /// inverted view is on. `false` when the view is off or the document is not open.
+    fn rebuild_when_inverted(&mut self, id: DocId) -> bool {
+        let Some(doc) = self.docs.iter_mut().find(|d| d.id == id) else { return false };
         if !doc.config.invert_colors {
             return false;
         }
-        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), doc.config.clone());
+        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), display_config(&doc.config));
         doc.generation += 1;
         true
     }
 
-    /// Whether document `id` renders with inverted colors; `None` when no such document is open.
+    /// Whether document `id` renders in the inverted view; `None` when no such document is open.
     pub fn invert_colors(&self, id: DocId) -> Option<bool> {
         Some(self.get(id)?.config.invert_colors)
     }
 
+    /// The paper and ink colours of document `id`'s inverted view; `None` when no such document is open.
+    pub fn invert_palette(&self, id: DocId) -> Option<pdfcraft_render::InvertPalette> {
+        Some(self.get(id)?.config.invert_palette)
+    }
+
+    /// Whether document `id`'s inverted view keeps pictures as they are; `None` when no such
+    /// document is open.
+    pub fn invert_keep_images(&self, id: DocId) -> Option<bool> {
+        Some(self.get(id)?.config.invert_keep_images)
+    }
+
     /// How the document's pages are drawn for viewing: its password and view settings (layer
-    /// visibility, hidden comments, reading colours). `None` when no such document is open.
+    /// visibility, hidden comments, reading colours, the inverted view). `None` when no such
+    /// document is open.
     pub fn render_config(&self, id: DocId) -> Option<RenderConfig> {
         Some(self.get(id)?.config.clone())
     }

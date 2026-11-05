@@ -87,6 +87,51 @@ impl InvertPalette {
     pub const SEPIA: Self = Self { paper: [0x2a, 0x24, 0x20], ink: [0xea, 0xd8, 0xc4] };
 }
 
+impl InvertPalette {
+    /// The palette a tool or setting names: `soft_dark`, `black_and_white` or `sepia`, or
+    /// `custom` with `paper` and `ink` as `#rrggbb`. The colours belong to `custom` alone.
+    pub fn parse(name: &str, paper: Option<&str>, ink: Option<&str>) -> Result<Self, String> {
+        let preset = match name {
+            "soft_dark" => Some(Self::SOFT_DARK),
+            "black_and_white" => Some(Self::PURE),
+            "sepia" => Some(Self::SEPIA),
+            "custom" => None,
+            other => return Err(format!("unknown palette {other:?}; expected soft_dark, black_and_white, sepia or custom")),
+        };
+        match (preset, paper, ink) {
+            (Some(palette), None, None) => Ok(palette),
+            (Some(_), _, _) => Err("paper and ink only go with palette \"custom\"".into()),
+            (None, Some(paper), Some(ink)) => {
+                Ok(Self { paper: crate::reading::parse_hex("paper", paper)?, ink: crate::reading::parse_hex("ink", ink)? })
+            }
+            (None, _, _) => Err("palette \"custom\" needs both paper and ink (#rrggbb)".into()),
+        }
+    }
+
+    /// The name [`Self::parse`] accepts for this palette: a preset's, or `custom`.
+    pub fn name(&self) -> &'static str {
+        if *self == Self::SOFT_DARK {
+            "soft_dark"
+        } else if *self == Self::PURE {
+            "black_and_white"
+        } else if *self == Self::SEPIA {
+            "sepia"
+        } else {
+            "custom"
+        }
+    }
+
+    /// The paper colour as lowercase `#rrggbb`.
+    pub fn paper_hex(&self) -> String {
+        crate::reading::hex(self.paper)
+    }
+
+    /// The ink colour as lowercase `#rrggbb`.
+    pub fn ink_hex(&self) -> String {
+        crate::reading::hex(self.ink)
+    }
+}
+
 impl Default for InvertPalette {
     fn default() -> Self {
         Self::PURE
@@ -145,6 +190,21 @@ mod tests {
         a.recolor(InvertPalette::default());
         b.invert();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn palettes_parse_by_name_and_round_trip() {
+        for palette in [InvertPalette::SOFT_DARK, InvertPalette::PURE, InvertPalette::SEPIA] {
+            assert_eq!(InvertPalette::parse(palette.name(), None, None), Ok(palette));
+        }
+        let custom = InvertPalette::parse("custom", Some("#102030"), Some("#A0B0C0")).unwrap();
+        assert_eq!((custom.paper, custom.ink, custom.name()), ([0x10, 0x20, 0x30], [0xa0, 0xb0, 0xc0], "custom"));
+        assert_eq!((custom.paper_hex().as_str(), custom.ink_hex().as_str()), ("#102030", "#a0b0c0"));
+        // Colours belong to custom alone, custom needs both, and nothing else parses.
+        assert!(InvertPalette::parse("sepia", Some("#000000"), None).is_err());
+        assert!(InvertPalette::parse("custom", Some("#000000"), None).is_err());
+        assert!(InvertPalette::parse("custom", Some("#00000"), Some("#ffffff")).is_err());
+        assert!(InvertPalette::parse("neon", None, None).is_err());
     }
 
     #[test]

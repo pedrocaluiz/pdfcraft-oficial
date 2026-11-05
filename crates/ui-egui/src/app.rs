@@ -116,7 +116,12 @@ impl PdfCraftApp {
             ui_scale_applied: None,
             flatten_fill_sign_on_save: false,
             fill_text_size: fill_sign::TEXT_SIZE,
+            fill_tool: fill_sign::FillTool::Signature,
             fill_text_color: [0.0; 3],
+            fill_text_border: 0.0,
+            fill_text_border_color: None,
+            fill_text_border_shape: pdfcraft_engine::BorderShape::Rectangle,
+            fill_text_default: fill_sign::TextBorder::NONE,
             dialog: None,
             updates: updates::Updates::default(),
             printer_source: None,
@@ -136,6 +141,7 @@ impl PdfCraftApp {
             last_session: Default::default(),
             quit_session: None,
             reload_changed_files: true,
+            update_check_at_start: true,
             show_secured_notice: true,
             always_default_view: false,
             #[cfg(not(target_arch = "wasm32"))]
@@ -235,8 +241,11 @@ impl PdfCraftApp {
             stamp_draft: Default::default(),
             optimize_draft: OptimizeDraft::default(),
             optimize_run: None,
+            scan_clean_draft: scan_clean_ui::ScanCleanDraft::default(),
+            scan_clean_run: None,
             progress_notice: None,
             page_clipboard: None,
+            comment_clipboard: None,
             grid_drop: None,
             last_snapshot: None,
             last_copied_image: None,
@@ -268,6 +277,7 @@ impl PdfCraftApp {
             fonts_cjk: theme::CjkPreference::Default,
             control: None,
             bookmark_rename: None,
+            bookmark_clipboard: None,
             last_opened_url: None,
             community_card_closed: false,
             pending_link: None,
@@ -455,6 +465,9 @@ impl eframe::App for PdfCraftApp {
         // Notices raised outside `ui` (opened files, OS events, the control channel) translate too.
         let lang = i18n::Lang::from_pref(&self.language);
         i18n::set_current(lang);
+        // Form date fields name months in the date language (Preferences ▸ Date format), which
+        // follows the interface language until one is picked (#5303).
+        pdfcraft_engine::dates::use_form_date_language(self.session.date_language().unwrap_or(lang.code()));
         #[cfg(not(target_arch = "wasm32"))]
         {
             if let Some(worker) = &self.open_worker {
@@ -617,6 +630,7 @@ impl eframe::App for PdfCraftApp {
         self.auto_ocr_scanned_page();
         self.poll_ocr();
         self.poll_optimize();
+        self.poll_scan_clean();
         self.poll_action();
         self.process_file_requests();
         #[cfg(not(target_arch = "wasm32"))]
@@ -682,6 +696,7 @@ impl eframe::App for PdfCraftApp {
         }
         side_panels::show(self, ui);
         let t = theme::Tokens::get(&ctx);
+        // Around an inverted (dark) page the light theme's pale pasteboard would glare.
         let pasteboard = if self.invert_colors && !t.dark() { egui::Color32::from_gray(32) } else { t.pasteboard };
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(pasteboard)).show(ui, |ui| {
             if self.mode == Mode::AllTools && self.all_tools_full {

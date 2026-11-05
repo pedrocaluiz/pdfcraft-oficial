@@ -1,4 +1,5 @@
 use super::*;
+use crate::file_filter::AddFilterAnyCase as _;
 
 /// Whether `a` and `b` name the same file: equal, or equal once made absolute against the
 /// current directory (links are not resolved, as in `last_session`).
@@ -269,7 +270,8 @@ impl PdfCraftApp {
         self.password_prompt = None;
         // The reading-colours preference is app-wide: a newly opened document starts with it.
         // Idempotent: the engine returns `false` when the document has the setting already.
-        self.sync_night(id);
+        self.session.set_reading_colors(id, self.reading_colors);
+        self.apply_invert(id);
         let doc = self.session.get(id).ok_or("the document could not be opened")?;
         let pages = doc.info.pages.len();
         // Acrobat opens straight to the Comments panel when a document has comments.
@@ -705,7 +707,9 @@ impl PdfCraftApp {
     /// The File ▸ Open picker: PDFs, and images and text that become PDFs.
     #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn open_picker() -> rfd::AsyncFileDialog {
-        rfd::AsyncFileDialog::new().add_filter("PDF", &["pdf"]).add_filter(tl!("Images and text (converted to PDF)"), &create_ui::CONVERTIBLE)
+        rfd::AsyncFileDialog::new()
+            .add_filter_any_case("PDF", &["pdf"])
+            .add_filter_any_case(tl!("Images and text (converted to PDF)"), &create_ui::CONVERTIBLE)
     }
 
     pub fn open_dialog(&mut self) {
@@ -713,7 +717,9 @@ impl PdfCraftApp {
         #[cfg(not(target_arch = "wasm32"))]
         self.pick(
             pickers::PickFor::Open,
-            rfd::AsyncFileDialog::new().add_filter("PDF", &["pdf"]).add_filter(tl!("Images and text (converted to PDF)"), &create_ui::CONVERTIBLE),
+            rfd::AsyncFileDialog::new()
+                .add_filter_any_case("PDF", &["pdf"])
+                .add_filter_any_case(tl!("Images and text (converted to PDF)"), &create_ui::CONVERTIBLE),
             true,
         );
         // Browsers pick files asynchronously; the bytes arrive through `inbox`.
@@ -723,8 +729,8 @@ impl PdfCraftApp {
             let ctx = self.ctx.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 if let Some(h) = rfd::AsyncFileDialog::new()
-                    .add_filter("PDF", &["pdf"])
-                    .add_filter(tl!("Images and text"), &create_ui::CONVERTIBLE)
+                    .add_filter_any_case("PDF", &["pdf"])
+                    .add_filter_any_case(tl!("Images and text"), &create_ui::CONVERTIBLE)
                     .pick_file()
                     .await
                 {

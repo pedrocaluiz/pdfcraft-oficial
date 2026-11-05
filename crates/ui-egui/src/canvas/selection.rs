@@ -159,6 +159,7 @@ enum SelectionAction {
 }
 
 /// Actions on an existing text selection, next to the selected words.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn selection_actions(
     ui: &mut egui::Ui,
     viewport: Rect,

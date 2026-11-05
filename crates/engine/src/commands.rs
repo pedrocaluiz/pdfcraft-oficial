@@ -220,9 +220,14 @@ pub const COMMANDS: &[CommandSpec] = &[
     // Alt-drag for moving windows (several Linux window managers).
     // Copy events stay with the frontend so focused text inputs and page clipboard routing keep ownership.
     c("edit.copy", "Copy", EDIT, None, Copying, "copy"),
+    // Comments travel between documents as XFDF (M14): ⌘C with comments selected copies them,
+    // ⌘V pastes the copies onto the current page; the strip's Copy/Paste in the menus too.
+    c("comment.copy", "Copy comments", EDIT, None, Document, "copy"),
+    c("comment.paste", "Paste comments", EDIT, None, Annotate, "clipboard-paste"),
     c("edit.column_select", "Column select", EDIT, None, Document, "text-select"),
     c("edit.snapshot", "Take a snapshot", EDIT, None, Copying, "camera"),
     c("view.full_screen", "Full screen mode", VIEW, Some(Shortcut::cmd("L")), Document, "maximize"),
+    c("view.invert_colors", "Invert colors", VIEW, Some(Shortcut::cmd("I")), Document, "contrast"),
     c("view.read_mode", "Read mode", VIEW, Some(Shortcut { command: true, shift: false, mac_ctrl: true, key: "H" }), Document, "book-open"),
     // Browsers' tab keys (#1542): Ctrl+Tab on every platform, ⌃Tab rather than ⌘Tab on macOS,
     // where the system takes ⌘Tab. They follow the tabs' order on screen and wrap around, and
@@ -233,7 +238,6 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("view.previous_view", "Previous view", None, Some(Shortcut::cmd("[")), Document, "chevron-left"),
     c("view.next_view", "Next view", None, Some(Shortcut::cmd("]")), Document, "chevron-right"),
     c("view.focus_page_input", "Go to page…", VIEW, Some(Shortcut::cmd_shift("N")), Document, "text-cursor-input"),
-    c("view.invert_colors", "Invert colors", VIEW, Some(Shortcut::cmd("I")), Document, "contrast"),
     c(
         "view.side_panel",
         "Show or hide the side panel",
@@ -359,6 +363,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("tools.document_js", "Document JavaScripts…", None, None, Modification, "file-code"),
     c("ocr.recognize", "Recognize text…", None, None, Modification, "scan-text"),
     c("ocr.enhance_camera", "Enhance camera image", None, None, Modification, "camera"),
+    c("ocr.enhance", "Enhance scanned file…", None, None, Modification, "sparkles"),
     c("ocr.recognize_batch", "Recognize text in multiple files…", None, None, Nothing, "files"),
     c("a11y.check", "Check for accessibility…", None, None, Document, "accessibility"),
     c("a11y.find_untagged", "Find untagged content", None, None, Document, "search"),

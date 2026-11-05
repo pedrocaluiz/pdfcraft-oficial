@@ -1,6 +1,7 @@
 //! The crate's integration tests, linked into one test binary. `perf.rs` keeps its own process:
 //! its frame-time budgets would charge each measurement for the other tests running beside it.
 
+mod invert_colors;
 mod support;
 
 /// Tests that render pixels (`h.render()`) take this first, so only one wgpu device exists at a
@@ -71,7 +72,9 @@ mod recent_files;
 mod recovery;
 mod redact;
 mod reload;
+mod scan_clean;
 mod script_noop;
+mod scroll_prefetch;
 mod side_panels;
 mod signing;
 mod stamps;

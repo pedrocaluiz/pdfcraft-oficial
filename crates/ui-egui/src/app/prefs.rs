@@ -46,32 +46,6 @@ impl PdfCraftApp {
         }
     }
 
-    /// Inverted view combines with the reading-colours preference, and the two never stack (stacked, a white-on-black preference
-    /// turned the dark page light again): text only maps text and line art to the palette's ink and
-    /// paper and leaves pictures alone, and invert everything renders with reading colours off.
-    /// With the view off it is the preference.
-    pub fn night_reading(&self) -> pdfcraft_render::ReadingColors {
-        if !self.invert_colors {
-            return self.reading_colors;
-        }
-        if self.invert_keep_images {
-            let params = pdfcraft_render::ReadingParams {
-                text: self.invert_palette.ink,
-                background: self.invert_palette.paper,
-                only_black: false,
-                line_art: true,
-            };
-            pdfcraft_render::ReadingColors { params: Some(params) }
-        } else {
-            pdfcraft_render::ReadingColors::default()
-        }
-    }
-
-    /// Give document `id` the app-wide invert setting and palette.
-    pub(crate) fn apply_invert(&mut self, id: pdfcraft_engine::DocId) {
-        self.sync_night(id);
-    }
-
     /// Tests connection to Ollama server endpoint.
     pub fn test_ollama(&mut self) {
         let endpoint = self.ollama_config.endpoint.clone();
@@ -187,51 +161,56 @@ impl PdfCraftApp {
         self.ai_state.add_request(kind, title, preview, prompt, Some(current_page), &self.ollama_config);
     }
 
-    /// Gives document `id` the app-wide night-reading state: pixel inversion (every pixel, pictures
-    /// included) or the text-only mapping through reading colours. `true` when anything changed.
-    pub fn sync_night(&mut self, id: pdfcraft_engine::DocId) -> bool {
-        let pixels = self.invert_colors && !self.invert_keep_images;
-        let reading = self.night_reading();
-        let a = self.session.set_invert_palette(id, self.invert_palette);
-        let b = self.session.set_invert_colors(id, pixels);
-        let c = self.session.set_reading_colors(id, reading);
-        a || b || c
-    }
-
-    /// [`Self::sync_night`] for every open document; the ones it touches re-render.
-    pub fn sync_night_all(&mut self) {
-        for i in 0..self.views.len() {
-            if self.sync_night(self.views[i].id) {
-                self.views[i].invalidate_content();
-            }
-        }
-    }
-
     /// The app-wide reading-colours preference: sets it and applies it to every open document,
     /// not just the active one (Preferences ▸ Reading colours, Acrobat's Replace Document
     /// Colors). A document the change actually touches re-renders.
     pub fn set_reading_colors(&mut self, colors: pdfcraft_render::ReadingColors) {
         self.reading_colors = colors;
-        self.sync_night_all();
+        for i in 0..self.views.len() {
+            // Idempotent per document: the engine says whether anything changed.
+            if self.session.set_reading_colors(self.views[i].id, colors) {
+                self.views[i].invalidate_content();
+            }
+        }
+    }
+
+    /// Gives document `id` the app-wide inverted view: whether it is on, its mode and its palette.
+    /// The engine decides what that means for drawing, so the reading-colours preference is left
+    /// alone and comes back when the view is turned off. `true` when anything changed.
+    pub(crate) fn apply_invert(&mut self, id: pdfcraft_engine::DocId) -> bool {
+        let keep = self.session.set_invert_keep_images(id, self.invert_keep_images);
+        let palette = self.session.set_invert_palette(id, self.invert_palette);
+        let on = self.session.set_invert_colors(id, self.invert_colors);
+        keep || palette || on
+    }
+
+    /// [`Self::apply_invert`] for every open document; the ones it touches re-render.
+    fn apply_invert_all(&mut self) {
+        for i in 0..self.views.len() {
+            let id = self.views[i].id;
+            if self.apply_invert(id) {
+                self.views[i].invalidate_content();
+            }
+        }
     }
 
     /// Invert page colours (View ▸ Invert colors): sets the app-wide preference and applies it to
-    /// every open document, which re-renders. The files never change.
+    /// every open document. The files never change.
     pub fn set_invert_colors(&mut self, invert: bool) {
         self.invert_colors = invert;
-        self.sync_night_all();
+        self.apply_invert_all();
+    }
+
+    /// Set the paper and ink colours of the inverted view, for every open document.
+    pub fn set_invert_palette(&mut self, palette: pdfcraft_render::InvertPalette) {
+        self.invert_palette = palette;
+        self.apply_invert_all();
     }
 
     /// Whether the inverted view keeps pictures as they are (text only) or inverts every pixel.
     pub fn set_invert_keep_images(&mut self, keep: bool) {
         self.invert_keep_images = keep;
-        self.sync_night_all();
-    }
-
-    /// Set the paper and ink colours of the inverted page.
-    pub fn set_invert_palette(&mut self, palette: pdfcraft_render::InvertPalette) {
-        self.invert_palette = palette;
-        self.sync_night_all();
+        self.apply_invert_all();
     }
 
     /// Enable the Linux desktop portal in a native window. Headless contexts keep
@@ -283,6 +262,9 @@ impl PdfCraftApp {
             "ui_scale": self.ui_scale,
             "flatten_fill_sign": self.flatten_fill_sign_on_save,
             "fill_text_size": self.fill_text_size,
+            "fill_text_border": self.fill_text_default.width,
+            "fill_text_border_color": self.fill_text_default.color,
+            "fill_text_border_shape": self.fill_text_default.shape.name(),
             "date_format": self.session.date_format(),
             // Null follows the interface language.
             "date_language": self.session.date_language(),
@@ -296,8 +278,12 @@ impl PdfCraftApp {
                     "tool": t.command(),
                     "color": s.color,
                     "opacity": s.opacity,
+                    "fill_opacity": s.fill_opacity,
+                    "text_opacity": s.text_opacity,
                     "width": s.width,
                     "fill": s.fill,
+                    "border_color": s.border_color,
+                    "border_shape": s.border_shape.name(),
                 }))
                 .collect::<Vec<_>>(),
             // Drawn signatures keep their original form (older settings read the same).
@@ -327,6 +313,9 @@ impl PdfCraftApp {
         // Set outside json! above, which is at serde_json's macro recursion limit.
         v["hide_empty_highlight_hover"] = serde_json::Value::Bool(self.comment_prefs.hide_empty_highlight_hover);
         v["show_page_edge_shadows"] = self.show_page_edge_shadows.into();
+        // Not `check_updates_at_start`: that key was an opt-in of its own, off unless chosen, and
+        // settings written then would turn this off unasked.
+        v["update_check_at_start"] = self.update_check_at_start.into();
         v["hotbar"] = serde_json::to_value(&self.hotbar).unwrap_or_default();
         v["comment_tool_pinned"] = serde_json::Value::Bool(self.comment_prefs.pinned);
         v["show_secured_notice"] = serde_json::Value::Bool(self.show_secured_notice);
@@ -398,6 +387,9 @@ impl PdfCraftApp {
         }
         if let Some(on) = v["reload_changed_files"].as_bool() {
             self.reload_changed_files = on;
+        }
+        if let Some(on) = v["update_check_at_start"].as_bool() {
+            self.update_check_at_start = on;
         }
         if let Some(on) = v["show_secured_notice"].as_bool() {
             self.show_secured_notice = on;
@@ -482,6 +474,26 @@ impl PdfCraftApp {
         if let Some(show) = v["show_page_edge_shadows"].as_bool() {
             self.show_page_edge_shadows = show;
         }
+        if let Some(width) = v["fill_text_border"].as_f64().and_then(fill_sign::valid_text_border) {
+            self.fill_text_default.width = width;
+        }
+        if let Some(shape) = v["fill_text_border_shape"].as_str().and_then(pdfcraft_engine::BorderShape::parse) {
+            self.fill_text_default.shape = shape;
+        }
+        // `null` is a saved "the text's colour"; a missing or malformed one keeps the setting.
+        match v.get("fill_text_border_color") {
+            Some(serde_json::Value::Null) => self.fill_text_default.color = None,
+            Some(c) => {
+                if let Some(c) = rgb_triple(c) {
+                    self.fill_text_default.color = Some(c.map(|x| x.clamp(0.0, 1.0)));
+                }
+            }
+            None => {}
+        }
+        // Fill & Sign text starts from the saved border.
+        self.fill_text_border = self.fill_text_default.width;
+        self.fill_text_border_color = self.fill_text_default.color;
+        self.fill_text_border_shape = self.fill_text_default.shape;
         if let Some(prefs) = RedactPrefs::from_json(&v["redact_prefs"]) {
             self.redact_prefs = prefs.clone();
             self.redact_defaults = prefs;
@@ -498,6 +510,10 @@ impl PdfCraftApp {
         if let Some(on) = v["invert_colors"].as_bool() {
             self.invert_colors = on;
         }
+        // Settings are untrusted: a palette that isn't two #rgb byte triples keeps the default.
+        if let Ok(palette) = serde_json::from_value::<pdfcraft_render::InvertPalette>(v["invert_palette"].clone()) {
+            self.invert_palette = palette;
+        }
         if let Some(keep) = v["invert_keep_images"].as_bool() {
             self.invert_keep_images = keep;
         }
@@ -508,9 +524,6 @@ impl PdfCraftApp {
         }
         if let Ok(cfg) = serde_json::from_value::<crate::lookup::OllamaConfig>(v["ollama_config"].clone()) {
             self.ollama_config = cfg;
-        }
-        if let Ok(palette) = serde_json::from_value::<pdfcraft_render::InvertPalette>(v["invert_palette"].clone()) {
-            self.invert_palette = palette;
         }
         // Settings are untrusted: a size out of range follows the system instead.
         self.ui_scale = v["ui_scale"].as_f64().and_then(ui_scale::valid);
@@ -547,6 +560,8 @@ impl PdfCraftApp {
                 if let Some(o) = e["opacity"].as_f64() {
                     self.comment_prefs.set_opacity(tool, o);
                 }
+                // The fill's and text's own opacities, where saved (older settings have none).
+                self.comment_prefs.set_part_opacity(tool, e["fill_opacity"].as_f64(), e["text_opacity"].as_f64());
                 if let Some(w) = e["width"].as_f64() {
                     self.comment_prefs.set_width(tool, w);
                 }
@@ -561,6 +576,20 @@ impl PdfCraftApp {
                     let mut s = self.comment_prefs.style(tool);
                     s.fill = fill;
                     self.comment_prefs.set_style(tool, s);
+                }
+                // `"border_color": null` is a saved "Same as text", which clears a tool's own border
+                // colour; a missing or malformed one keeps it.
+                match e.get("border_color") {
+                    Some(serde_json::Value::Null) => self.comment_prefs.set_border_color(tool, None),
+                    Some(c) => {
+                        if let Some(c) = rgb_triple(c) {
+                            self.comment_prefs.set_border_color(tool, Some(c));
+                        }
+                    }
+                    None => {}
+                }
+                if let Some(shape) = e["border_shape"].as_str().and_then(pdfcraft_engine::BorderShape::parse) {
+                    self.comment_prefs.set_border_shape(tool, shape);
                 }
             }
         }

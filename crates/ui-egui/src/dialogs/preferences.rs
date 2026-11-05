@@ -659,6 +659,8 @@ fn card_general(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &mut 
     ctx.checkbox(ui, &mut app.restore_last_view, tl!("Restore the last view (page, zoom and page display) when a document is opened again"), t);
     #[cfg(not(target_arch = "wasm32"))]
     ctx.checkbox(ui, &mut app.reload_changed_files, tl!("Reload documents when their files change on disk"), t);
+    #[cfg(not(target_arch = "wasm32"))]
+    ctx.checkbox(ui, &mut app.update_check_at_start, tl!("Check for updates when PdfCraft starts"), t);
     ctx.checkbox(ui, &mut app.show_secured_notice, tl!("Show a notice when a document is secured"), t);
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -984,32 +986,44 @@ fn reading_colours_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens,
         }
     });
     ctx.label_secondary(ui, tl!("Colours are remapped while rendering; the document itself never changes."), t);
+    invert_colours_section(ui, app, t, ctx);
+}
 
+/// Invert colours settings: the switch, its mode and palette. While it is on it replaces the
+/// reading colours above, which come back when it is off.
+fn invert_colours_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &mut PrefSearchContext) {
     ui.add_space(8.0);
     let mut invert = app.invert_colors;
     if ctx.checkbox(ui, &mut invert, tl!("Invert colors"), t).changed() {
         app.set_invert_colors(invert);
     }
-    if app.invert_colors {
-        ui.horizontal(|ui| {
-            for (keep, label) in [(false, "Invert everything"), (true, "Text only, keep images")] {
-                if ui.selectable_label(app.invert_keep_images == keep, tl!(label)).clicked() {
-                    app.set_invert_keep_images(keep);
-                }
-            }
-        });
-        ui.horizontal(|ui| {
-            for (palette, label) in [
-                (pdfcraft_render::InvertPalette::SOFT_DARK, "Soft dark gray"),
-                (pdfcraft_render::InvertPalette::PURE, "Black and white"),
-                (pdfcraft_render::InvertPalette::SEPIA, "Sepia night"),
-            ] {
-                if ui.selectable_label(app.invert_palette == palette, tl!(label)).clicked() {
-                    app.set_invert_palette(palette);
-                }
-            }
-        });
+    let mut keep = app.invert_keep_images;
+    if ctx.pill_choice(ui, t, &mut keep, &[(false, tl!("Invert everything")), (true, tl!("Text only, keep images"))]) {
+        app.set_invert_keep_images(keep);
     }
+    let mut palette = app.invert_palette;
+    let presets = [
+        (pdfcraft_render::InvertPalette::SOFT_DARK, tl!("Soft dark gray")),
+        (pdfcraft_render::InvertPalette::PURE, tl!("Black and white")),
+        (pdfcraft_render::InvertPalette::SEPIA, tl!("Sepia night")),
+    ];
+    if ctx.pill_choice(ui, t, &mut palette, &presets) {
+        app.set_invert_palette(palette);
+    }
+    // The colours of the inverted page: the dark paper and the light ink (default black and white).
+    ui.horizontal(|ui| {
+        let mut custom = app.invert_palette;
+        let paper = ctx.label_primary(ui, tl!("Inverted page background"), t);
+        let a = ui.color_edit_button_srgb(&mut custom.paper).labelled_by(paper.id).changed();
+        let ink = ctx.label_primary(ui, tl!("Inverted text"), t);
+        let b = ui.color_edit_button_srgb(&mut custom.ink).labelled_by(ink.id).changed();
+        if a || b {
+            app.set_invert_palette(custom);
+        }
+        if ui.button(tl!("Reset")).clicked() {
+            app.set_invert_palette(pdfcraft_render::InvertPalette::default());
+        }
+    });
 }
 
 fn ai_assistant_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &mut PrefSearchContext) {
@@ -1041,7 +1055,9 @@ fn ai_assistant_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ct
                     ui.label(egui::RichText::new("✓ Conectado! (Nenhum modelo baixado no Ollama ainda)").color(Color32::from_rgb(0x2E, 0x7D, 0x32)));
                 }
                 Ok(models) => {
-                    ui.label(egui::RichText::new(format!("✓ Conectado! {} modelos disponíveis:", models.len())).color(Color32::from_rgb(0x2E, 0x7D, 0x32)));
+                    ui.label(
+                        egui::RichText::new(format!("✓ Conectado! {} modelos disponíveis:", models.len())).color(Color32::from_rgb(0x2E, 0x7D, 0x32)),
+                    );
                     ui.horizontal_wrapped(|ui| {
                         for m in models {
                             let is_sel = app.ollama_config.model == *m;

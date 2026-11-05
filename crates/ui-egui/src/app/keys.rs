@@ -43,18 +43,26 @@ impl PdfCraftApp {
             {
                 let pos = egui::pos2(rect.left(), rect.bottom() + 6.0);
                 if ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::T))) {
-                    self.active_lookup = Some(crate::lookup::ActiveLookup::start(&text, crate::lookup::LookupKind::Translate, pos, None, Some(&self.ollama_config)));
+                    self.active_lookup =
+                        Some(crate::lookup::ActiveLookup::start(&text, crate::lookup::LookupKind::Translate, pos, None, Some(&self.ollama_config)));
                     selection_shortcut_handled = true;
                 } else if ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::D))) {
-                    self.active_lookup = Some(crate::lookup::ActiveLookup::start(&text, crate::lookup::LookupKind::Dictionary, pos, None, Some(&self.ollama_config)));
-                    selection_shortcut_handled = true;
-                } else if self.ollama_config.enabled && ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::E))) {
-                    self.active_lookup = Some(crate::lookup::ActiveLookup::start(&text, crate::lookup::LookupKind::AiExplain, pos, None, Some(&self.ollama_config)));
+                    self.active_lookup =
+                        Some(crate::lookup::ActiveLookup::start(&text, crate::lookup::LookupKind::Dictionary, pos, None, Some(&self.ollama_config)));
                     selection_shortcut_handled = true;
                 } else if self.ollama_config.enabled
-                    && ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::E)))
+                    && ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::E)))
                 {
-                    self.active_lookup = Some(crate::lookup::ActiveLookup::start(&text, crate::lookup::LookupKind::AiSummarize, pos, None, Some(&self.ollama_config)));
+                    self.active_lookup =
+                        Some(crate::lookup::ActiveLookup::start(&text, crate::lookup::LookupKind::AiExplain, pos, None, Some(&self.ollama_config)));
+                    selection_shortcut_handled = true;
+                } else if self.ollama_config.enabled
+                    && ctx.input_mut(|input| {
+                        input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::E))
+                    })
+                {
+                    self.active_lookup =
+                        Some(crate::lookup::ActiveLookup::start(&text, crate::lookup::LookupKind::AiSummarize, pos, None, Some(&self.ollama_config)));
                     selection_shortcut_handled = true;
                 }
             }
@@ -138,11 +146,7 @@ impl PdfCraftApp {
         }
         if ctx.input(|input| input.key_pressed(Key::A)) {
             let doc_permits = self.session.get(self.views[i].id).is_some_and(|d| d.allows_annotation());
-            let selection = if doc_permits {
-                self.session.get(self.views[i].id).and_then(|d| self.views[i].selection_quads(&d.info))
-            } else {
-                None
-            };
+            let selection = if doc_permits { self.session.get(self.views[i].id).and_then(|d| self.views[i].selection_quads(&d.info)) } else { None };
             if let Some((page, quads)) = selection {
                 self.views[i].clear_selection();
                 let tool = comments::CommentTool::Highlight;
