@@ -181,7 +181,11 @@ impl PdfCraftApp {
         }
         if keys.pressed(ctx, Key::A) {
             let doc_permits = self.session.get(self.views[i].id).is_some_and(|d| d.allows_annotation());
-            let selection = if doc_permits { self.session.get(self.views[i].id).and_then(|d| self.views[i].selection_quads(&d.info)) } else { None };
+            let selection = if doc_permits {
+                self.session.get(self.views[i].id).and_then(|d| <[_; 1]>::try_from(self.views[i].selection_quads(&d.info)).ok().map(|[one]| one))
+            } else {
+                None
+            };
             if let Some((page, quads)) = selection {
                 self.views[i].clear_selection();
                 let tool = comments::CommentTool::Highlight;

@@ -273,10 +273,11 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     }
                     egui::Popup::context_menu(&response).id(response.id.with("theme_menu")).show(|ui| appearance_menu(app, ui));
                     // Night reading: a click inverts the page colours; a right-click picks mode and palette.
-                    let invert_tip = match pdfcraft_engine::commands::command("view.invert_colors").and_then(|c| c.shortcut) {
-                        Some(shortcut) => format!("{} ({})", tl!("Invert colors"), crate::commands::shortcut_label(ui.ctx(), shortcut)),
-                        None => tl!("Invert colors").to_string(),
-                    };
+                    let invert_tip =
+                        match pdfcraft_engine::commands::command("view.invert_colors").and_then(|c| c.shortcut_for(cfg!(target_os = "macos"))) {
+                            Some(shortcut) => format!("{} ({})", tl!("Invert colors"), crate::commands::shortcut_label(ui.ctx(), shortcut)),
+                            None => tl!("Invert colors").to_string(),
+                        };
                     let invert = icons::button(ui, "contrast", button, app.invert_colors, &invert_tip);
                     if invert.clicked() {
                         app.execute("view.invert_colors");
